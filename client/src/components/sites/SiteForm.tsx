@@ -14,10 +14,12 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -31,6 +33,8 @@ const extendedSiteSchema = insertSiteSchema.extend({
   name: z.string().min(3, { message: "Site name must be at least 3 characters" }),
   address: z.string().min(5, { message: "Address must be at least 5 characters" }),
   district: z.string().min(1, { message: "District is required" }),
+  surroundingIndustries: z.array(z.string()).optional(),
+  siteImages: z.array(z.string()).optional(),
 });
 
 type FormValues = z.infer<typeof extendedSiteSchema>;
@@ -63,6 +67,8 @@ export default function SiteForm({ initialData, onSuccess, isEdit = false }: Sit
       totalStaff: 0,
       facilities: "",
       notes: "",
+      surroundingIndustries: [],
+      siteImages: [],
     },
   });
 
@@ -391,6 +397,214 @@ export default function SiteForm({ initialData, onSuccess, isEdit = false }: Sit
               </FormItem>
             )}
           />
+
+          {/* Surrounding Industries Checkboxes */}
+          <div className="space-y-2">
+            <FormLabel>Surrounding Industries</FormLabel>
+            <FormDescription>
+              Select the industries that surround this site
+            </FormDescription>
+            
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-2">
+              <FormField
+                control={form.control}
+                name="surroundingIndustries"
+                render={({ field }) => {
+                  return (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value?.includes('Mining')}
+                          onCheckedChange={(checked) => {
+                            const currentValues = field.value || [];
+                            return checked
+                              ? field.onChange([...currentValues, 'Mining'])
+                              : field.onChange(
+                                  currentValues.filter((value) => value !== 'Mining')
+                                );
+                          }}
+                        />
+                      </FormControl>
+                      <FormLabel className="font-normal">Mining</FormLabel>
+                    </FormItem>
+                  );
+                }}
+              />
+              
+              <FormField
+                control={form.control}
+                name="surroundingIndustries"
+                render={({ field }) => {
+                  return (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value?.includes('Agriculture')}
+                          onCheckedChange={(checked) => {
+                            const currentValues = field.value || [];
+                            return checked
+                              ? field.onChange([...currentValues, 'Agriculture'])
+                              : field.onChange(
+                                  currentValues.filter((value) => value !== 'Agriculture')
+                                );
+                          }}
+                        />
+                      </FormControl>
+                      <FormLabel className="font-normal">Agriculture</FormLabel>
+                    </FormItem>
+                  );
+                }}
+              />
+              
+              <FormField
+                control={form.control}
+                name="surroundingIndustries"
+                render={({ field }) => {
+                  return (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value?.includes('Manufacturing')}
+                          onCheckedChange={(checked) => {
+                            const currentValues = field.value || [];
+                            return checked
+                              ? field.onChange([...currentValues, 'Manufacturing'])
+                              : field.onChange(
+                                  currentValues.filter((value) => value !== 'Manufacturing')
+                                );
+                          }}
+                        />
+                      </FormControl>
+                      <FormLabel className="font-normal">Manufacturing</FormLabel>
+                    </FormItem>
+                  );
+                }}
+              />
+              
+              <FormField
+                control={form.control}
+                name="surroundingIndustries"
+                render={({ field }) => {
+                  return (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value?.includes('Healthcare')}
+                          onCheckedChange={(checked) => {
+                            const currentValues = field.value || [];
+                            return checked
+                              ? field.onChange([...currentValues, 'Healthcare'])
+                              : field.onChange(
+                                  currentValues.filter((value) => value !== 'Healthcare')
+                                );
+                          }}
+                        />
+                      </FormControl>
+                      <FormLabel className="font-normal">Healthcare</FormLabel>
+                    </FormItem>
+                  );
+                }}
+              />
+              
+              <FormField
+                control={form.control}
+                name="surroundingIndustries"
+                render={({ field }) => {
+                  return (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value?.includes('Retail')}
+                          onCheckedChange={(checked) => {
+                            const currentValues = field.value || [];
+                            return checked
+                              ? field.onChange([...currentValues, 'Retail'])
+                              : field.onChange(
+                                  currentValues.filter((value) => value !== 'Retail')
+                                );
+                          }}
+                        />
+                      </FormControl>
+                      <FormLabel className="font-normal">Retail</FormLabel>
+                    </FormItem>
+                  );
+                }}
+              />
+              
+              <FormField
+                control={form.control}
+                name="surroundingIndustries"
+                render={({ field }) => {
+                  return (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value?.includes('Tourism')}
+                          onCheckedChange={(checked) => {
+                            const currentValues = field.value || [];
+                            return checked
+                              ? field.onChange([...currentValues, 'Tourism'])
+                              : field.onChange(
+                                  currentValues.filter((value) => value !== 'Tourism')
+                                );
+                          }}
+                        />
+                      </FormControl>
+                      <FormLabel className="font-normal">Tourism</FormLabel>
+                    </FormItem>
+                  );
+                }}
+              />
+            </div>
+          </div>
+          
+          {/* Image Upload Area */}
+          <div className="space-y-2">
+            <FormLabel>Site Images</FormLabel>
+            <FormDescription>
+              Upload images of the site
+            </FormDescription>
+            
+            <div className="border-2 border-dashed border-gray-300 rounded-md p-6 mt-2">
+              <div className="flex flex-col items-center justify-center space-y-2">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-10 w-10 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
+                </svg>
+                <div className="text-gray-600">
+                  <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none">
+                    <span>Upload images</span>
+                    <Input
+                      id="file-upload"
+                      name="file-upload"
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="sr-only"
+                      onChange={(e) => {
+                        // In a real implementation, you would handle file uploads here
+                        console.log("Files selected:", e.target.files);
+                        // Currently just a placeholder
+                      }}
+                    />
+                  </label>
+                </div>
+                <p className="text-xs text-gray-500">
+                  PNG, JPG, GIF up to 10MB
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="flex justify-end space-x-2">
