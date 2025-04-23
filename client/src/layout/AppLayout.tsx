@@ -2,16 +2,19 @@ import React, { useState, useEffect } from "react";
 import AppHeader from "@/components/AppHeader";
 import Sidebar from "@/components/Sidebar";
 import OfflineStatusBar from "@/components/OfflineStatusBar";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface AppLayoutProps {
   children: React.ReactNode;
 }
 
 const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768);
+  const isMobile = useIsMobile();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(!isMobile);
   
   const handleToggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen);
+    console.log("Toggle sidebar clicked");
+    setIsSidebarOpen(prevState => !prevState);
   };
   
   // Handle responsive sidebar behavior

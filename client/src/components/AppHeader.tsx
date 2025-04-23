@@ -23,8 +23,9 @@ const AppHeader: React.FC<AppHeaderProps> = ({ onToggleSidebar }) => {
         <div className="flex items-center">
           <button 
             className="mr-4 text-white focus:outline-none hover:bg-primary-600 p-2 rounded-md transition-colors"
-            onClick={onToggleSidebar}
+            onClick={() => onToggleSidebar()}
             aria-label="Toggle sidebar"
+            type="button"
           >
             <i className="fas fa-bars text-xl"></i>
           </button>
