@@ -9,7 +9,11 @@ import Staff from "@/pages/staff";
 import Assets from "@/pages/assets";
 import Programs from "@/pages/programs";
 import Reports from "@/pages/reports";
+import Settings from "@/pages/settings";
 import AppLayout from "@/layout/AppLayout";
+import { OnboardingProvider } from "@/components/tutorial/OnboardingContext";
+import { TutorialTooltip } from "@/components/tutorial/TutorialTooltip";
+import { HelpButton } from "@/components/tutorial/HelpButton";
 
 function Router() {
   return (
@@ -23,6 +27,7 @@ function Router() {
       <Route path="/assets" component={Assets} />
       <Route path="/programs" component={Programs} />
       <Route path="/reports" component={Reports} />
+      <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -31,9 +36,13 @@ function Router() {
 function App() {
   return (
     <TooltipProvider>
-      <AppLayout>
-        <Router />
-      </AppLayout>
+      <OnboardingProvider>
+        <AppLayout>
+          <Router />
+        </AppLayout>
+        <TutorialTooltip />
+        <HelpButton />
+      </OnboardingProvider>
     </TooltipProvider>
   );
 }

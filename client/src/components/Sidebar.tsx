@@ -22,7 +22,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
     { id: "staff", label: "Staff", icon: "fa-users", path: "/staff" },
     { id: "assets", label: "Assets", icon: "fa-clipboard-list", path: "/assets" },
     { id: "programs", label: "Programs", icon: "fa-book", path: "/programs" },
-    { id: "reports", label: "Reports", icon: "fa-chart-bar", path: "/reports" }
+    { id: "reports", label: "Reports", icon: "fa-chart-bar", path: "/reports" },
+    { id: "settings", label: "Settings", icon: "fa-cog", path: "/settings" }
   ];
 
   const isActive = (path: string) => {
