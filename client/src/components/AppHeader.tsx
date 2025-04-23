@@ -31,7 +31,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ onToggleSidebar, isSidebarOpen = 
             <i className={`fas ${isSidebarOpen ? "fa-times" : "fa-bars"} text-xl`}></i>
           </button>
           <div className="flex items-center">
-            <img src={logoPath} alt="North West CET College Logo" className="h-10 mr-3" />
+            <img src={logoPath} alt="North West CET College Logo" className="h-10 mr-3 bg-white p-1 rounded" />
             <h1 className="text-xl font-medium hidden md:block">Baseline Assessment System</h1>
             <h1 className="text-xl font-medium md:hidden">NW CET BAS</h1>
           </div>
