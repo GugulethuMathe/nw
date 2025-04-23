@@ -4,9 +4,10 @@ import logoPath from "@assets/logo.png";
 
 interface AppHeaderProps {
   onToggleSidebar: () => void;
+  isSidebarOpen?: boolean;
 }
 
-const AppHeader: React.FC<AppHeaderProps> = ({ onToggleSidebar }) => {
+const AppHeader: React.FC<AppHeaderProps> = ({ onToggleSidebar, isSidebarOpen = false }) => {
   const { isOffline, syncStatus } = useOfflineStatus();
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
 
@@ -27,7 +28,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ onToggleSidebar }) => {
             aria-label="Toggle sidebar"
             type="button"
           >
-            <i className="fas fa-bars text-xl"></i>
+            <i className={`fas ${isSidebarOpen ? "fa-times" : "fa-bars"} text-xl`}></i>
           </button>
           <div className="flex items-center">
             <img src={logoPath} alt="North West CET College Logo" className="h-10 mr-3" />

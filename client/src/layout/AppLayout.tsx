@@ -22,7 +22,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   
   return (
     <div className="min-h-screen">
-      <AppHeader onToggleSidebar={handleToggleSidebar} />
+      <AppHeader onToggleSidebar={handleToggleSidebar} isSidebarOpen={isSidebarOpen} />
       <Sidebar isOpen={isSidebarOpen} />
       
       <main 
