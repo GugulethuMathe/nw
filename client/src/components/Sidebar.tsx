@@ -74,14 +74,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
       </nav>
       
       <div className="absolute bottom-0 w-full border-t border-neutral-200 px-4 py-3">
-        <Link href="/settings">
-          <div className="flex items-center text-neutral-500 hover:text-primary-500 transition-colors cursor-pointer">
-            <i className="fas fa-cog w-6"></i>
-            <span>Settings</span>
-          </div>
-        </Link>
         <Link href="/logout">
-          <div className="flex items-center text-neutral-500 hover:text-primary-500 transition-colors cursor-pointer mt-3">
+          <div className="flex items-center text-neutral-500 hover:text-primary-500 transition-colors cursor-pointer">
             <i className="fas fa-sign-out-alt w-6"></i>
             <span>Logout</span>
           </div>

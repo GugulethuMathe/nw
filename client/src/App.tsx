@@ -14,6 +14,8 @@ import AppLayout from "@/layout/AppLayout";
 import { OnboardingProvider } from "@/components/tutorial/OnboardingContext";
 import { TutorialTooltip } from "@/components/tutorial/TutorialTooltip";
 import { HelpButton } from "@/components/tutorial/HelpButton";
+import { WelcomeDialog } from "@/components/tutorial/WelcomeDialog";
+import { TutorialProgress } from "@/components/tutorial/TutorialProgress";
 
 function Router() {
   return (
@@ -42,6 +44,8 @@ function App() {
         </AppLayout>
         <TutorialTooltip />
         <HelpButton />
+        <WelcomeDialog />
+        <TutorialProgress />
       </OnboardingProvider>
     </TooltipProvider>
   );

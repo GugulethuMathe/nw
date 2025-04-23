@@ -2,9 +2,9 @@ import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { insertSiteSchema, type Site } from "@shared/schema";
+import { insertAssetSchema, type Asset, type Site } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 
 import {
@@ -26,42 +26,49 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-// Extend the insert schema to add more validation
-const extendedSiteSchema = insertSiteSchema.extend({
-  name: z.string().min(3, { message: "Site name must be at least 3 characters" }),
-  address: z.string().min(5, { message: "Address must be at least 5 characters" }),
-  district: z.string().min(1, { message: "District is required" }),
+// Extend the schema for additional validation
+const extendedAssetSchema = insertAssetSchema.extend({
+  name: z.string().min(3, { message: "Asset name must be at least 3 characters" }),
+  type: z.string().min(2, { message: "Asset type is required" }),
 });
 
-type FormValues = z.infer<typeof extendedSiteSchema>;
+type FormValues = z.infer<typeof extendedAssetSchema>;
 
-interface SiteFormProps {
-  initialData?: Site;
+interface AssetFormProps {
+  initialData?: Asset;
   onSuccess?: () => void;
   isEdit?: boolean;
+  preSelectedSiteId?: number;
 }
 
-export default function SiteForm({ initialData, onSuccess, isEdit = false }: SiteFormProps) {
+export default function AssetForm({ initialData, onSuccess, isEdit = false, preSelectedSiteId }: AssetFormProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Fetch sites for dropdown
+  const sitesQuery = useQuery({
+    queryKey: ["/api/sites"],
+    select: (data: Site[]) => data,
+  });
   
   const form = useForm<FormValues>({
-    resolver: zodResolver(extendedSiteSchema),
+    resolver: zodResolver(extendedAssetSchema),
     defaultValues: initialData || {
+      assetId: "",
       name: "",
-      type: "CLC",
-      siteId: "",
-      address: "",
-      district: "",
-      contactPerson: "",
-      contactPhone: "",
-      contactEmail: "",
-      gpsCoordinates: "",
-      operationalStatus: "Active",
-      assessmentStatus: "ToVisit",
-      totalStudents: 0,
-      totalStaff: 0,
-      facilities: "",
+      type: "",
+      category: "Equipment",
+      manufacturer: "",
+      model: "",
+      serialNumber: "",
+      purchaseDate: "",
+      purchasePrice: 0,
+      condition: "Good",
+      location: "",
+      siteId: preSelectedSiteId || undefined,
+      assignedTo: "",
+      lastMaintenanceDate: "",
+      nextMaintenanceDate: "",
       notes: "",
     },
   });
@@ -69,22 +76,30 @@ export default function SiteForm({ initialData, onSuccess, isEdit = false }: Sit
   const mutation = useMutation({
     mutationFn: async (data: FormValues) => {
       if (isEdit && initialData) {
-        return apiRequest(`/api/sites/${initialData.id}`, {
+        return apiRequest(`/api/assets/${initialData.id}`, {
           method: "PATCH",
           data,
         });
       } else {
-        return apiRequest("/api/sites", {
+        return apiRequest("/api/assets", {
           method: "POST",
           data,
         });
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/sites"] });
+      // Invalidate assets queries
+      queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
+      
+      // If a site is selected, also invalidate that site's assets list
+      const siteId = form.getValues("siteId");
+      if (siteId) {
+        queryClient.invalidateQueries({ queryKey: [`/api/sites/${siteId}/assets`] });
+      }
+      
       toast({
-        title: `Site ${isEdit ? "updated" : "created"} successfully`,
-        description: `The site has been ${isEdit ? "updated" : "created"}.`,
+        title: `Asset ${isEdit ? "updated" : "created"} successfully`,
+        description: `The asset has been ${isEdit ? "updated" : "created"}.`,
       });
       
       if (onSuccess) {
@@ -98,7 +113,7 @@ export default function SiteForm({ initialData, onSuccess, isEdit = false }: Sit
     onError: (error) => {
       toast({
         title: "Error",
-        description: `Failed to ${isEdit ? "update" : "create"} site: ${error.message}`,
+        description: `Failed to ${isEdit ? "update" : "create"} asset: ${error.message}`,
         variant: "destructive",
       });
     },
@@ -116,12 +131,12 @@ export default function SiteForm({ initialData, onSuccess, isEdit = false }: Sit
           <div className="space-y-4">
             <FormField
               control={form.control}
-              name="siteId"
+              name="assetId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Site ID</FormLabel>
+                  <FormLabel>Asset ID</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., CLC-001" {...field} />
+                    <Input placeholder="e.g., ASSET-001" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -133,9 +148,9 @@ export default function SiteForm({ initialData, onSuccess, isEdit = false }: Sit
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Site Name</FormLabel>
+                  <FormLabel>Asset Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Klerksdorp CLC" {...field} />
+                    <Input placeholder="e.g., Computer Lab Desktop" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -147,17 +162,34 @@ export default function SiteForm({ initialData, onSuccess, isEdit = false }: Sit
               name="type"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Site Type</FormLabel>
+                  <FormLabel>Asset Type</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., Computer, Printer, Desk" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Category</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select site type" />
+                        <SelectValue placeholder="Select category" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="CLC">Community Learning Center</SelectItem>
-                      <SelectItem value="Satellite">Satellite</SelectItem>
-                      <SelectItem value="Administrative">Administrative</SelectItem>
+                      <SelectItem value="Equipment">Equipment</SelectItem>
+                      <SelectItem value="Furniture">Furniture</SelectItem>
+                      <SelectItem value="IT">IT</SelectItem>
+                      <SelectItem value="Teaching">Teaching</SelectItem>
+                      <SelectItem value="Office">Office</SelectItem>
+                      <SelectItem value="Other">Other</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -167,21 +199,28 @@ export default function SiteForm({ initialData, onSuccess, isEdit = false }: Sit
 
             <FormField
               control={form.control}
-              name="district"
+              name="siteId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>District</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormLabel>Assigned Site</FormLabel>
+                  <Select 
+                    onValueChange={(value) => field.onChange(Number(value))} 
+                    defaultValue={field.value ? String(field.value) : undefined}
+                    disabled={sitesQuery.isLoading || Boolean(preSelectedSiteId)}
+                  >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select district" />
+                        <SelectValue placeholder="Select assigned site" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="Bojanala">Bojanala</SelectItem>
-                      <SelectItem value="Dr Kenneth Kaunda">Dr Kenneth Kaunda</SelectItem>
-                      <SelectItem value="Dr Ruth Segomotsi Mompati">Dr Ruth Segomotsi Mompati</SelectItem>
-                      <SelectItem value="Ngaka Modiri Molema">Ngaka Modiri Molema</SelectItem>
+                      {sitesQuery.isLoading ? (
+                        <SelectItem value="loading">Loading sites...</SelectItem>
+                      ) : sitesQuery.data?.map((site) => (
+                        <SelectItem key={site.id} value={String(site.id)}>
+                          {site.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -191,43 +230,22 @@ export default function SiteForm({ initialData, onSuccess, isEdit = false }: Sit
 
             <FormField
               control={form.control}
-              name="operationalStatus"
+              name="condition"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Operational Status</FormLabel>
+                  <FormLabel>Condition</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
+                        <SelectValue placeholder="Select condition" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="Active">Active</SelectItem>
-                      <SelectItem value="Inactive">Inactive</SelectItem>
-                      <SelectItem value="Planned">Planned</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="assessmentStatus"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Assessment Status</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select assessment status" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="ToVisit">To Visit</SelectItem>
-                      <SelectItem value="Visited">Visited</SelectItem>
-                      <SelectItem value="DataVerified">Data Verified</SelectItem>
+                      <SelectItem value="Excellent">Excellent</SelectItem>
+                      <SelectItem value="Good">Good</SelectItem>
+                      <SelectItem value="Fair">Fair</SelectItem>
+                      <SelectItem value="Poor">Poor</SelectItem>
+                      <SelectItem value="NonFunctional">Non-functional</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -240,15 +258,72 @@ export default function SiteForm({ initialData, onSuccess, isEdit = false }: Sit
           <div className="space-y-4">
             <FormField
               control={form.control}
-              name="address"
+              name="manufacturer"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Address</FormLabel>
+                  <FormLabel>Manufacturer</FormLabel>
                   <FormControl>
-                    <Textarea 
-                      placeholder="Full address of the site"
-                      className="resize-none"
-                      {...field} 
+                    <Input placeholder="e.g., Dell, HP" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="model"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Model</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., Inspiron 3000" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="serialNumber"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Serial Number</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., ABC123456789" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="purchaseDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Purchase Date</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="purchasePrice"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Purchase Price (ZAR)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="number" 
+                      placeholder="0" 
+                      {...field}
+                      onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
                     />
                   </FormControl>
                   <FormMessage />
@@ -258,54 +333,12 @@ export default function SiteForm({ initialData, onSuccess, isEdit = false }: Sit
 
             <FormField
               control={form.control}
-              name="gpsCoordinates"
+              name="location"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>GPS Coordinates</FormLabel>
+                  <FormLabel>Location</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., -26.8523, 26.6665" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="contactPerson"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Contact Person</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Name of primary contact" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="contactPhone"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Contact Phone</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., +27 12 345 6789" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="contactEmail"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Contact Email</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., contact@site.edu.za" {...field} />
+                    <Input placeholder="e.g., Computer Lab, Room 101" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -314,60 +347,47 @@ export default function SiteForm({ initialData, onSuccess, isEdit = false }: Sit
           </div>
         </div>
 
-        {/* Full Width Controls */}
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="totalStudents"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Total Students</FormLabel>
-                  <FormControl>
-                    <Input 
-                      type="number" 
-                      placeholder="0" 
-                      {...field}
-                      onChange={e => field.onChange(parseInt(e.target.value) || 0)}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="totalStaff"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Total Staff</FormLabel>
-                  <FormControl>
-                    <Input 
-                      type="number" 
-                      placeholder="0" 
-                      {...field}
-                      onChange={e => field.onChange(parseInt(e.target.value) || 0)}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+        {/* Additional Fields */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="assignedTo"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Assigned To</FormLabel>
+                <FormControl>
+                  <Input placeholder="Name of person responsible for this asset" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           <FormField
             control={form.control}
-            name="facilities"
+            name="lastMaintenanceDate"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Facilities</FormLabel>
+                <FormLabel>Last Maintenance Date</FormLabel>
                 <FormControl>
-                  <Textarea 
-                    placeholder="Description of facilities available (classrooms, labs, etc.)"
-                    className="resize-none"
-                    {...field} 
-                  />
+                  <Input type="date" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        {/* Full Width Controls */}
+        <div className="space-y-4">
+          <FormField
+            control={form.control}
+            name="nextMaintenanceDate"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Next Maintenance Date</FormLabel>
+                <FormControl>
+                  <Input type="date" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -382,7 +402,7 @@ export default function SiteForm({ initialData, onSuccess, isEdit = false }: Sit
                 <FormLabel>Additional Notes</FormLabel>
                 <FormControl>
                   <Textarea 
-                    placeholder="Any additional information about the site"
+                    placeholder="Any additional information about the asset"
                     className="resize-none"
                     {...field} 
                   />
@@ -408,7 +428,7 @@ export default function SiteForm({ initialData, onSuccess, isEdit = false }: Sit
                 {isEdit ? "Updating..." : "Creating..."}
               </span>
             ) : (
-              <>{isEdit ? "Update" : "Create"} Site</>
+              <>{isEdit ? "Update" : "Create"} Asset</>
             )}
           </Button>
         </div>
