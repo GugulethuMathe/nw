@@ -9,29 +9,16 @@ interface AppLayoutProps {
 }
 
 const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
-  const isMobile = useIsMobile();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(!isMobile);
+  // Start with sidebar closed by default on all devices
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   const handleToggleSidebar = () => {
     console.log("Toggle sidebar clicked");
     setIsSidebarOpen(prevState => !prevState);
   };
   
-  // Handle responsive sidebar behavior
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 768) {
-        setIsSidebarOpen(true);
-      } else {
-        setIsSidebarOpen(false);
-      }
-    };
-    
-    window.addEventListener("resize", handleResize);
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
-  }, []);
+  // Removed the auto-opening behavior on resize to respect user's preference
+  // We'll let the user control the sidebar state manually through the toggle button
   
   return (
     <div className="min-h-screen">
@@ -39,7 +26,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       <Sidebar isOpen={isSidebarOpen} />
       
       <main 
-        className={`pt-16 transition-all duration-300 ${isSidebarOpen ? "md:ml-64" : ""}`}
+        className={`pt-16 transition-all duration-300 ${isSidebarOpen ? "ml-64" : ""}`}
       >
         {children}
       </main>
