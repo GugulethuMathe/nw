@@ -1,0 +1,273 @@
+import { pgTable, text, serial, integer, boolean, date, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod";
+import { relations } from "drizzle-orm";
+
+// Users Table
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull(),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  email: text("email"),
+  phone: text("phone"),
+  role: text("role").default("Field Assessor"),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastLogin: timestamp("last_login"),
+});
+
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  createdAt: true,
+  lastLogin: true,
+});
+
+// Sites Table
+export const sites = pgTable("sites", {
+  id: serial("id").primaryKey(),
+  siteId: text("site_id").notNull().unique(), // e.g., CLC-001
+  name: text("name").notNull(),
+  type: text("type").notNull(), // CLC, Satellite, Operational
+  district: text("district").notNull(),
+  address: text("address"),
+  latitude: text("latitude"),
+  longitude: text("longitude"),
+  operationalStatus: text("operational_status").notNull().default("Active"), // Active, Inactive, Planned
+  assessmentStatus: text("assessment_status").notNull().default("To Visit"), // To Visit, Visited, Data Verified
+  contactPerson: text("contact_person"),
+  contactDetails: text("contact_details"),
+  establishmentDate: date("establishment_date"),
+  agreementType: text("agreement_type"), // Owned, Rented, Partnership
+  hostDepartment: text("host_department"),
+  contractNumber: text("contract_number"),
+  contractTerm: text("contract_term"),
+  renewalDate: date("renewal_date"),
+  monthlyCost: text("monthly_cost"),
+  totalArea: integer("total_area"),
+  classrooms: integer("classrooms"),
+  offices: integer("offices"),
+  computerLabs: integer("computer_labs"),
+  workshops: integer("workshops"),
+  library: boolean("library"),
+  studentCommonAreas: boolean("student_common_areas"),
+  staffFacilities: boolean("staff_facilities"),
+  accessibility: text("accessibility"),
+  internetConnectivity: text("internet_connectivity"),
+  securityFeatures: text("security_features"),
+  buildingCondition: text("building_condition"), // Good, Fair, Poor, Critical
+  electricalCondition: text("electrical_condition"),
+  plumbingCondition: text("plumbing_condition"),
+  interiorCondition: text("interior_condition"),
+  exteriorCondition: text("exterior_condition"),
+  lastRenovationDate: date("last_renovation_date"),
+  visitDate: date("visit_date"),
+  visitedBy: text("visited_by"),
+  verificationDate: date("verification_date"),
+  verifiedBy: text("verified_by"),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+  images: jsonb("images").default([]), // Array of image objects {url, caption}
+  staffCount: integer("staff_count").default(0),
+  programCount: integer("program_count").default(0),
+  assetCount: integer("asset_count").default(0),
+  notes: text("notes"),
+});
+
+export const insertSiteSchema = createInsertSchema(sites).omit({
+  id: true,
+  lastUpdated: true,
+});
+
+// Staff Table
+export const staff = pgTable("staff", {
+  id: serial("id").primaryKey(),
+  staffId: text("staff_id").notNull().unique(),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  idNumber: text("id_number").unique(),
+  gender: text("gender"),
+  dateOfBirth: date("date_of_birth"),
+  email: text("email"),
+  phone: text("phone"),
+  position: text("position"),
+  department: text("department"),
+  employmentType: text("employment_type"), // Permanent, Contract, Part-time
+  startDate: date("start_date"),
+  endDate: date("end_date"),
+  qualifications: jsonb("qualifications").default([]),
+  skills: jsonb("skills").default([]),
+  siteId: integer("site_id").references(() => sites.id),
+  verified: boolean("verified").default(false),
+  verificationDate: date("verification_date"),
+  verifiedBy: text("verified_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+  documents: jsonb("documents").default([]), // Array of document references
+  notes: text("notes"),
+});
+
+export const insertStaffSchema = createInsertSchema(staff).omit({
+  id: true,
+  createdAt: true,
+  lastUpdated: true,
+});
+
+// Assets Table
+export const assets = pgTable("assets", {
+  id: serial("id").primaryKey(),
+  assetId: text("asset_id").notNull().unique(),
+  name: text("name").notNull(),
+  category: text("category").notNull(),
+  description: text("description"),
+  siteId: integer("site_id").references(() => sites.id),
+  location: text("location"),
+  acquisitionDate: date("acquisition_date"),
+  condition: text("condition"), // Good, Fair, Poor, Critical
+  estimatedValue: text("estimated_value"),
+  serialNumber: text("serial_number"),
+  modelNumber: text("model_number"),
+  manufacturer: text("manufacturer"),
+  supplier: text("supplier"),
+  warrantyInfo: text("warranty_info"),
+  lastMaintenance: date("last_maintenance"),
+  nextMaintenance: date("next_maintenance"),
+  images: jsonb("images").default([]),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+  notes: text("notes"),
+});
+
+export const insertAssetSchema = createInsertSchema(assets).omit({
+  id: true,
+  createdAt: true,
+  lastUpdated: true,
+});
+
+// Programs Table
+export const programs = pgTable("programs", {
+  id: serial("id").primaryKey(),
+  programId: text("program_id").notNull().unique(),
+  name: text("name").notNull(),
+  category: text("category"),
+  description: text("description"),
+  startDate: date("start_date"),
+  endDate: date("end_date"),
+  enrollmentCount: integer("enrollment_count"),
+  status: text("status").default("Active"),
+  coordinator: text("coordinator"),
+  siteId: integer("site_id").references(() => sites.id),
+  documents: jsonb("documents").default([]),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+  notes: text("notes"),
+});
+
+export const insertProgramSchema = createInsertSchema(programs).omit({
+  id: true,
+  createdAt: true,
+  lastUpdated: true,
+});
+
+// Policies Table
+export const policies = pgTable("policies", {
+  id: serial("id").primaryKey(),
+  policyId: text("policy_id").notNull().unique(),
+  name: text("name").notNull(),
+  category: text("category"),
+  description: text("description"),
+  status: text("status").default("Active"), // Active, Draft, Missing
+  approvalDate: date("approval_date"),
+  reviewDate: date("review_date"),
+  nextReviewDate: date("next_review_date"),
+  approvedBy: text("approved_by"),
+  documentUrl: text("document_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+  notes: text("notes"),
+});
+
+export const insertPolicySchema = createInsertSchema(policies).omit({
+  id: true,
+  createdAt: true,
+  lastUpdated: true,
+});
+
+// External Projects Table
+export const externalProjects = pgTable("external_projects", {
+  id: serial("id").primaryKey(),
+  projectId: text("project_id").notNull().unique(),
+  name: text("name").notNull(),
+  fundingSource: text("funding_source"),
+  budget: text("budget"),
+  startDate: date("start_date"),
+  endDate: date("end_date"),
+  status: text("status").default("In Progress"),
+  objectives: text("objectives"),
+  outcomes: text("outcomes"),
+  siteIds: jsonb("site_ids").default([]), // Array of site IDs
+  staffIds: jsonb("staff_ids").default([]), // Array of staff IDs
+  documents: jsonb("documents").default([]),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+  notes: text("notes"),
+});
+
+export const insertExternalProjectSchema = createInsertSchema(externalProjects).omit({
+  id: true,
+  createdAt: true,
+  lastUpdated: true,
+});
+
+// Table Relations
+export const usersRelations = relations(users, ({ many }) => ({
+  staff: many(staff)
+}));
+
+export const sitesRelations = relations(sites, ({ many }) => ({
+  staff: many(staff),
+  assets: many(assets),
+  programs: many(programs)
+}));
+
+export const staffRelations = relations(staff, ({ one }) => ({
+  site: one(sites, {
+    fields: [staff.siteId],
+    references: [sites.id]
+  })
+}));
+
+export const assetsRelations = relations(assets, ({ one }) => ({
+  site: one(sites, {
+    fields: [assets.siteId],
+    references: [sites.id]
+  })
+}));
+
+export const programsRelations = relations(programs, ({ one }) => ({
+  site: one(sites, {
+    fields: [programs.siteId],
+    references: [sites.id]
+  })
+}));
+
+// Type Definitions
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+
+export type Site = typeof sites.$inferSelect;
+export type InsertSite = z.infer<typeof insertSiteSchema>;
+
+export type Staff = typeof staff.$inferSelect;
+export type InsertStaff = z.infer<typeof insertStaffSchema>;
+
+export type Asset = typeof assets.$inferSelect;
+export type InsertAsset = z.infer<typeof insertAssetSchema>;
+
+export type Program = typeof programs.$inferSelect;
+export type InsertProgram = z.infer<typeof insertProgramSchema>;
+
+export type Policy = typeof policies.$inferSelect;
+export type InsertPolicy = z.infer<typeof insertPolicySchema>;
+
+export type ExternalProject = typeof externalProjects.$inferSelect;
+export type InsertExternalProject = z.infer<typeof insertExternalProjectSchema>;

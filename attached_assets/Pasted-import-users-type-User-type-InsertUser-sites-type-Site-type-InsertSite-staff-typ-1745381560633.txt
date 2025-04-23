@@ -1,0 +1,896 @@
+import { 
+  users, type User, type InsertUser, 
+  sites, type Site, type InsertSite,
+  staff, type Staff, type InsertStaff,
+  assets, type Asset, type InsertAsset,
+  programs, type Program, type InsertProgram,
+  policies, type Policy, type InsertPolicy,
+  externalProjects, type ExternalProject, type InsertExternalProject
+} from "@shared/schema";
+
+// Interface for all storage operations
+export interface IStorage {
+  // User operations
+  getUser(id: number): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  createUser(user: InsertUser): Promise<User>;
+  
+  // Site operations
+  getSites(): Promise<Site[]>;
+  getSite(id: number): Promise<Site | undefined>;
+  getSiteBySiteId(siteId: string): Promise<Site | undefined>;
+  createSite(site: InsertSite): Promise<Site>;
+  updateSite(id: number, site: Partial<InsertSite>): Promise<Site | undefined>;
+  deleteSite(id: number): Promise<boolean>;
+  
+  // Staff operations
+  getStaffMembers(): Promise<Staff[]>;
+  getStaffMember(id: number): Promise<Staff | undefined>;
+  getStaffByStaffId(staffId: string): Promise<Staff | undefined>;
+  getStaffBySite(siteId: number): Promise<Staff[]>;
+  createStaffMember(staff: InsertStaff): Promise<Staff>;
+  updateStaffMember(id: number, staff: Partial<InsertStaff>): Promise<Staff | undefined>;
+  deleteStaffMember(id: number): Promise<boolean>;
+  
+  // Asset operations
+  getAssets(): Promise<Asset[]>;
+  getAsset(id: number): Promise<Asset | undefined>;
+  getAssetByAssetId(assetId: string): Promise<Asset | undefined>;
+  getAssetsBySite(siteId: number): Promise<Asset[]>;
+  createAsset(asset: InsertAsset): Promise<Asset>;
+  updateAsset(id: number, asset: Partial<InsertAsset>): Promise<Asset | undefined>;
+  deleteAsset(id: number): Promise<boolean>;
+  
+  // Program operations
+  getPrograms(): Promise<Program[]>;
+  getProgram(id: number): Promise<Program | undefined>;
+  getProgramByProgramId(programId: string): Promise<Program | undefined>;
+  getProgramsBySite(siteId: number): Promise<Program[]>;
+  createProgram(program: InsertProgram): Promise<Program>;
+  updateProgram(id: number, program: Partial<InsertProgram>): Promise<Program | undefined>;
+  deleteProgram(id: number): Promise<boolean>;
+  
+  // Policy operations
+  getPolicies(): Promise<Policy[]>;
+  getPolicy(id: number): Promise<Policy | undefined>;
+  getPolicyByPolicyId(policyId: string): Promise<Policy | undefined>;
+  createPolicy(policy: InsertPolicy): Promise<Policy>;
+  updatePolicy(id: number, policy: Partial<InsertPolicy>): Promise<Policy | undefined>;
+  deletePolicy(id: number): Promise<boolean>;
+  
+  // External Project operations
+  getExternalProjects(): Promise<ExternalProject[]>;
+  getExternalProject(id: number): Promise<ExternalProject | undefined>;
+  getExternalProjectByProjectId(projectId: string): Promise<ExternalProject | undefined>;
+  createExternalProject(project: InsertExternalProject): Promise<ExternalProject>;
+  updateExternalProject(id: number, project: Partial<InsertExternalProject>): Promise<ExternalProject | undefined>;
+  deleteExternalProject(id: number): Promise<boolean>;
+}
+
+// Memory-based storage implementation
+export class MemStorage implements IStorage {
+  private users: Map<number, User>;
+  private sites: Map<number, Site>;
+  private staffMembers: Map<number, Staff>;
+  private assets: Map<number, Asset>;
+  private programs: Map<number, Program>;
+  private policies: Map<number, Policy>;
+  private externalProjects: Map<number, ExternalProject>;
+  
+  private userIdCounter: number;
+  private siteIdCounter: number;
+  private staffIdCounter: number;
+  private assetIdCounter: number;
+  private programIdCounter: number;
+  private policyIdCounter: number;
+  private projectIdCounter: number;
+
+  constructor() {
+    this.users = new Map();
+    this.sites = new Map();
+    this.staffMembers = new Map();
+    this.assets = new Map();
+    this.programs = new Map();
+    this.policies = new Map();
+    this.externalProjects = new Map();
+    
+    this.userIdCounter = 1;
+    this.siteIdCounter = 1;
+    this.staffIdCounter = 1;
+    this.assetIdCounter = 1;
+    this.programIdCounter = 1;
+    this.policyIdCounter = 1;
+    this.projectIdCounter = 1;
+    
+    // Initialize with demo data
+    this.initializeDemoData();
+  }
+
+  // User operations
+  async getUser(id: number): Promise<User | undefined> {
+    return this.users.get(id);
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(
+      (user) => user.username === username,
+    );
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const id = this.userIdCounter++;
+    const now = new Date();
+    const user: User = { 
+      ...insertUser, 
+      id, 
+      createdAt: now,
+      lastLogin: null
+    };
+    this.users.set(id, user);
+    return user;
+  }
+
+  // Site operations
+  async getSites(): Promise<Site[]> {
+    return Array.from(this.sites.values());
+  }
+
+  async getSite(id: number): Promise<Site | undefined> {
+    return this.sites.get(id);
+  }
+
+  async getSiteBySiteId(siteId: string): Promise<Site | undefined> {
+    return Array.from(this.sites.values()).find(
+      (site) => site.siteId === siteId,
+    );
+  }
+
+  async createSite(insertSite: InsertSite): Promise<Site> {
+    const id = this.siteIdCounter++;
+    const now = new Date();
+    const site: Site = { 
+      ...insertSite, 
+      id, 
+      lastUpdated: now
+    };
+    this.sites.set(id, site);
+    return site;
+  }
+
+  async updateSite(id: number, siteUpdate: Partial<InsertSite>): Promise<Site | undefined> {
+    const site = this.sites.get(id);
+    if (!site) return undefined;
+    
+    const updatedSite: Site = { 
+      ...site, 
+      ...siteUpdate,
+      lastUpdated: new Date()
+    };
+    this.sites.set(id, updatedSite);
+    return updatedSite;
+  }
+
+  async deleteSite(id: number): Promise<boolean> {
+    return this.sites.delete(id);
+  }
+
+  // Staff operations
+  async getStaffMembers(): Promise<Staff[]> {
+    return Array.from(this.staffMembers.values());
+  }
+
+  async getStaffMember(id: number): Promise<Staff | undefined> {
+    return this.staffMembers.get(id);
+  }
+
+  async getStaffByStaffId(staffId: string): Promise<Staff | undefined> {
+    return Array.from(this.staffMembers.values()).find(
+      (staff) => staff.staffId === staffId,
+    );
+  }
+
+  async getStaffBySite(siteId: number): Promise<Staff[]> {
+    return Array.from(this.staffMembers.values()).filter(
+      (staff) => staff.siteId === siteId,
+    );
+  }
+
+  async createStaffMember(insertStaff: InsertStaff): Promise<Staff> {
+    const id = this.staffIdCounter++;
+    const now = new Date();
+    const staff: Staff = { 
+      ...insertStaff, 
+      id, 
+      createdAt: now,
+      lastUpdated: now
+    };
+    this.staffMembers.set(id, staff);
+    
+    // Update staff count for the site
+    if (staff.siteId) {
+      const site = await this.getSite(staff.siteId);
+      if (site) {
+        await this.updateSite(site.id, { 
+          staffCount: (site.staffCount || 0) + 1 
+        });
+      }
+    }
+    
+    return staff;
+  }
+
+  async updateStaffMember(id: number, staffUpdate: Partial<InsertStaff>): Promise<Staff | undefined> {
+    const staff = this.staffMembers.get(id);
+    if (!staff) return undefined;
+    
+    const updatedStaff: Staff = { 
+      ...staff, 
+      ...staffUpdate,
+      lastUpdated: new Date()
+    };
+    this.staffMembers.set(id, updatedStaff);
+    
+    // Handle site reassignment
+    if (staffUpdate.siteId && staffUpdate.siteId !== staff.siteId) {
+      // Decrement count from old site
+      if (staff.siteId) {
+        const oldSite = await this.getSite(staff.siteId);
+        if (oldSite && oldSite.staffCount && oldSite.staffCount > 0) {
+          await this.updateSite(oldSite.id, { 
+            staffCount: oldSite.staffCount - 1 
+          });
+        }
+      }
+      
+      // Increment count on new site
+      const newSite = await this.getSite(staffUpdate.siteId);
+      if (newSite) {
+        await this.updateSite(newSite.id, { 
+          staffCount: (newSite.staffCount || 0) + 1 
+        });
+      }
+    }
+    
+    return updatedStaff;
+  }
+
+  async deleteStaffMember(id: number): Promise<boolean> {
+    const staff = this.staffMembers.get(id);
+    if (staff && staff.siteId) {
+      const site = await this.getSite(staff.siteId);
+      if (site && site.staffCount && site.staffCount > 0) {
+        await this.updateSite(site.id, { 
+          staffCount: site.staffCount - 1 
+        });
+      }
+    }
+    
+    return this.staffMembers.delete(id);
+  }
+
+  // Asset operations
+  async getAssets(): Promise<Asset[]> {
+    return Array.from(this.assets.values());
+  }
+
+  async getAsset(id: number): Promise<Asset | undefined> {
+    return this.assets.get(id);
+  }
+
+  async getAssetByAssetId(assetId: string): Promise<Asset | undefined> {
+    return Array.from(this.assets.values()).find(
+      (asset) => asset.assetId === assetId,
+    );
+  }
+
+  async getAssetsBySite(siteId: number): Promise<Asset[]> {
+    return Array.from(this.assets.values()).filter(
+      (asset) => asset.siteId === siteId,
+    );
+  }
+
+  async createAsset(insertAsset: InsertAsset): Promise<Asset> {
+    const id = this.assetIdCounter++;
+    const now = new Date();
+    const asset: Asset = { 
+      ...insertAsset, 
+      id, 
+      createdAt: now,
+      lastUpdated: now
+    };
+    this.assets.set(id, asset);
+    
+    // Update asset count for the site
+    if (asset.siteId) {
+      const site = await this.getSite(asset.siteId);
+      if (site) {
+        await this.updateSite(site.id, { 
+          assetCount: (site.assetCount || 0) + 1 
+        });
+      }
+    }
+    
+    return asset;
+  }
+
+  async updateAsset(id: number, assetUpdate: Partial<InsertAsset>): Promise<Asset | undefined> {
+    const asset = this.assets.get(id);
+    if (!asset) return undefined;
+    
+    const updatedAsset: Asset = { 
+      ...asset, 
+      ...assetUpdate,
+      lastUpdated: new Date()
+    };
+    this.assets.set(id, updatedAsset);
+    
+    // Handle site reassignment
+    if (assetUpdate.siteId && assetUpdate.siteId !== asset.siteId) {
+      // Decrement count from old site
+      if (asset.siteId) {
+        const oldSite = await this.getSite(asset.siteId);
+        if (oldSite && oldSite.assetCount && oldSite.assetCount > 0) {
+          await this.updateSite(oldSite.id, { 
+            assetCount: oldSite.assetCount - 1 
+          });
+        }
+      }
+      
+      // Increment count on new site
+      const newSite = await this.getSite(assetUpdate.siteId);
+      if (newSite) {
+        await this.updateSite(newSite.id, { 
+          assetCount: (newSite.assetCount || 0) + 1 
+        });
+      }
+    }
+    
+    return updatedAsset;
+  }
+
+  async deleteAsset(id: number): Promise<boolean> {
+    const asset = this.assets.get(id);
+    if (asset && asset.siteId) {
+      const site = await this.getSite(asset.siteId);
+      if (site && site.assetCount && site.assetCount > 0) {
+        await this.updateSite(site.id, { 
+          assetCount: site.assetCount - 1 
+        });
+      }
+    }
+    
+    return this.assets.delete(id);
+  }
+
+  // Program operations
+  async getPrograms(): Promise<Program[]> {
+    return Array.from(this.programs.values());
+  }
+
+  async getProgram(id: number): Promise<Program | undefined> {
+    return this.programs.get(id);
+  }
+
+  async getProgramByProgramId(programId: string): Promise<Program | undefined> {
+    return Array.from(this.programs.values()).find(
+      (program) => program.programId === programId,
+    );
+  }
+
+  async getProgramsBySite(siteId: number): Promise<Program[]> {
+    return Array.from(this.programs.values()).filter(
+      (program) => program.siteId === siteId,
+    );
+  }
+
+  async createProgram(insertProgram: InsertProgram): Promise<Program> {
+    const id = this.programIdCounter++;
+    const now = new Date();
+    const program: Program = { 
+      ...insertProgram, 
+      id, 
+      createdAt: now,
+      lastUpdated: now
+    };
+    this.programs.set(id, program);
+    
+    // Update program count for the site
+    if (program.siteId) {
+      const site = await this.getSite(program.siteId);
+      if (site) {
+        await this.updateSite(site.id, { 
+          programCount: (site.programCount || 0) + 1 
+        });
+      }
+    }
+    
+    return program;
+  }
+
+  async updateProgram(id: number, programUpdate: Partial<InsertProgram>): Promise<Program | undefined> {
+    const program = this.programs.get(id);
+    if (!program) return undefined;
+    
+    const updatedProgram: Program = { 
+      ...program, 
+      ...programUpdate,
+      lastUpdated: new Date()
+    };
+    this.programs.set(id, updatedProgram);
+    
+    // Handle site reassignment
+    if (programUpdate.siteId && programUpdate.siteId !== program.siteId) {
+      // Decrement count from old site
+      if (program.siteId) {
+        const oldSite = await this.getSite(program.siteId);
+        if (oldSite && oldSite.programCount && oldSite.programCount > 0) {
+          await this.updateSite(oldSite.id, { 
+            programCount: oldSite.programCount - 1 
+          });
+        }
+      }
+      
+      // Increment count on new site
+      const newSite = await this.getSite(programUpdate.siteId);
+      if (newSite) {
+        await this.updateSite(newSite.id, { 
+          programCount: (newSite.programCount || 0) + 1 
+        });
+      }
+    }
+    
+    return updatedProgram;
+  }
+
+  async deleteProgram(id: number): Promise<boolean> {
+    const program = this.programs.get(id);
+    if (program && program.siteId) {
+      const site = await this.getSite(program.siteId);
+      if (site && site.programCount && site.programCount > 0) {
+        await this.updateSite(site.id, { 
+          programCount: site.programCount - 1 
+        });
+      }
+    }
+    
+    return this.programs.delete(id);
+  }
+
+  // Policy operations
+  async getPolicies(): Promise<Policy[]> {
+    return Array.from(this.policies.values());
+  }
+
+  async getPolicy(id: number): Promise<Policy | undefined> {
+    return this.policies.get(id);
+  }
+
+  async getPolicyByPolicyId(policyId: string): Promise<Policy | undefined> {
+    return Array.from(this.policies.values()).find(
+      (policy) => policy.policyId === policyId,
+    );
+  }
+
+  async createPolicy(insertPolicy: InsertPolicy): Promise<Policy> {
+    const id = this.policyIdCounter++;
+    const now = new Date();
+    const policy: Policy = { 
+      ...insertPolicy, 
+      id, 
+      createdAt: now,
+      lastUpdated: now
+    };
+    this.policies.set(id, policy);
+    return policy;
+  }
+
+  async updatePolicy(id: number, policyUpdate: Partial<InsertPolicy>): Promise<Policy | undefined> {
+    const policy = this.policies.get(id);
+    if (!policy) return undefined;
+    
+    const updatedPolicy: Policy = { 
+      ...policy, 
+      ...policyUpdate,
+      lastUpdated: new Date()
+    };
+    this.policies.set(id, updatedPolicy);
+    return updatedPolicy;
+  }
+
+  async deletePolicy(id: number): Promise<boolean> {
+    return this.policies.delete(id);
+  }
+
+  // External Project operations
+  async getExternalProjects(): Promise<ExternalProject[]> {
+    return Array.from(this.externalProjects.values());
+  }
+
+  async getExternalProject(id: number): Promise<ExternalProject | undefined> {
+    return this.externalProjects.get(id);
+  }
+
+  async getExternalProjectByProjectId(projectId: string): Promise<ExternalProject | undefined> {
+    return Array.from(this.externalProjects.values()).find(
+      (project) => project.projectId === projectId,
+    );
+  }
+
+  async createExternalProject(insertProject: InsertExternalProject): Promise<ExternalProject> {
+    const id = this.projectIdCounter++;
+    const now = new Date();
+    const project: ExternalProject = { 
+      ...insertProject, 
+      id, 
+      createdAt: now,
+      lastUpdated: now
+    };
+    this.externalProjects.set(id, project);
+    return project;
+  }
+
+  async updateExternalProject(id: number, projectUpdate: Partial<InsertExternalProject>): Promise<ExternalProject | undefined> {
+    const project = this.externalProjects.get(id);
+    if (!project) return undefined;
+    
+    const updatedProject: ExternalProject = { 
+      ...project, 
+      ...projectUpdate,
+      lastUpdated: new Date()
+    };
+    this.externalProjects.set(id, updatedProject);
+    return updatedProject;
+  }
+
+  async deleteExternalProject(id: number): Promise<boolean> {
+    return this.externalProjects.delete(id);
+  }
+
+  // Initialize with some sample data
+  private initializeDemoData() {
+    // Create admin user
+    this.createUser({
+      username: "admin",
+      password: "password",
+      firstName: "Admin",
+      lastName: "User",
+      email: "admin@nwcet.edu.za",
+      phone: "018-462-1234",
+      role: "Admin"
+    });
+
+    // Create field assessor user
+    this.createUser({
+      username: "field_assessor",
+      password: "password",
+      firstName: "John",
+      lastName: "Doe",
+      email: "jdoe@nwcet.edu.za",
+      phone: "018-462-5678",
+      role: "Field Assessor"
+    });
+
+    // Create sites
+    const initSites = async () => {
+      await this.createSite({
+        siteId: "CLC-001",
+        name: "Mahikeng CLC",
+        type: "CLC",
+        district: "Ngaka Modiri Molema",
+        address: "45 University Drive, Mahikeng, 2745",
+        latitude: "-25.8560",
+        longitude: "25.6403",
+        operationalStatus: "Active",
+        assessmentStatus: "Data Verified",
+        contactPerson: "Mrs. T. Modise",
+        contactDetails: "018-392-1234 / tmodise@nwcet.edu.za",
+        establishmentDate: new Date("2010-03-15"),
+        agreementType: "Partnership",
+        hostDepartment: "Department of Education - North West",
+        contractNumber: "NW-DOE-2010-021",
+        contractTerm: "10 years",
+        renewalDate: new Date("2025-03-14"),
+        monthlyCost: "N/A - Government Partnership",
+        totalArea: 2500,
+        classrooms: 8,
+        offices: 4,
+        computerLabs: 2,
+        workshops: 1,
+        library: true,
+        studentCommonAreas: true,
+        staffFacilities: true,
+        accessibility: "Ramp access to main building",
+        internetConnectivity: "Fiber - 100Mbps",
+        securityFeatures: "24-hour security, CCTV, alarm system",
+        buildingCondition: "Good",
+        electricalCondition: "Good",
+        plumbingCondition: "Fair",
+        interiorCondition: "Good",
+        exteriorCondition: "Good",
+        lastRenovationDate: new Date("2018-06-10"),
+        visitDate: new Date("2024-01-10"),
+        visitedBy: "J. Doe",
+        verificationDate: new Date("2024-01-15"),
+        verifiedBy: "S. Smith",
+        staffCount: 18,
+        programCount: 12,
+        assetCount: 75,
+        notes: "Main CLC for Ngaka Modiri Molema district, serves as administrative hub"
+      });
+  
+      await this.createSite({
+        siteId: "CLC-002",
+        name: "Rustenburg CLC",
+        type: "CLC",
+        district: "Bojanala",
+        address: "78 Boom Street, Rustenburg, 0299",
+        latitude: "-25.6518",
+        longitude: "27.2426",
+        operationalStatus: "Active",
+        assessmentStatus: "Visited",
+        contactPerson: "Mr. P. Nkosi",
+        contactDetails: "014-592-3456 / pnkosi@nwcet.edu.za",
+        establishmentDate: new Date("2011-07-20"),
+        agreementType: "Rented",
+        hostDepartment: "",
+        contractNumber: "RT-2011-034",
+        contractTerm: "5 years",
+        renewalDate: new Date("2026-07-19"),
+        monthlyCost: "R45,000",
+        totalArea: 1800,
+        classrooms: 6,
+        offices: 3,
+        computerLabs: 1,
+        workshops: 1,
+        library: false,
+        studentCommonAreas: true,
+        staffFacilities: true,
+        accessibility: "Single-level building with wide doorways",
+        internetConnectivity: "DSL - 50Mbps",
+        securityFeatures: "Security guard during operating hours, alarm system",
+        buildingCondition: "Good",
+        electricalCondition: "Good",
+        plumbingCondition: "Good",
+        interiorCondition: "Fair",
+        exteriorCondition: "Fair",
+        lastRenovationDate: new Date("2019-11-05"),
+        visitDate: new Date("2024-01-18"),
+        visitedBy: "J. Doe",
+        staffCount: 15,
+        programCount: 10,
+        assetCount: 52,
+        notes: "Located in industrial area, good accessibility for working adults"
+      });
+  
+      await this.createSite({
+        siteId: "CLC-003",
+        name: "Potchefstroom CLC",
+        type: "CLC",
+        district: "Dr Kenneth Kaunda",
+        address: "120 Walter Sisulu Ave, Potchefstroom, 2531",
+        latitude: "-26.7145",
+        longitude: "27.0970",
+        operationalStatus: "Active",
+        assessmentStatus: "Data Verified",
+        contactPerson: "Dr. L. van der Merwe",
+        contactDetails: "018-297-8765 / lvandermerwe@nwcet.edu.za",
+        establishmentDate: new Date("2010-09-01"),
+        agreementType: "Partnership",
+        hostDepartment: "North-West University",
+        contractNumber: "NWU-CET-2010-007",
+        contractTerm: "15 years",
+        renewalDate: new Date("2025-08-31"),
+        monthlyCost: "N/A - University Partnership",
+        totalArea: 3200,
+        classrooms: 10,
+        offices: 5,
+        computerLabs: 2,
+        workshops: 0,
+        library: true,
+        studentCommonAreas: true,
+        staffFacilities: true,
+        accessibility: "Fully accessible with elevators",
+        internetConnectivity: "University Network - 1Gbps",
+        securityFeatures: "University security, access control, CCTV",
+        buildingCondition: "Excellent",
+        electricalCondition: "Excellent",
+        plumbingCondition: "Excellent",
+        interiorCondition: "Excellent",
+        exteriorCondition: "Excellent",
+        lastRenovationDate: new Date("2020-12-15"),
+        visitDate: new Date("2024-01-05"),
+        visitedBy: "T. Mokoena",
+        verificationDate: new Date("2024-01-12"),
+        verifiedBy: "R. Smith",
+        staffCount: 16,
+        programCount: 9,
+        assetCount: 67,
+        notes: "University partnership provides excellent facilities and resources"
+      });
+  
+      await this.createSite({
+        siteId: "CLC-004",
+        name: "Klerksdorp CLC",
+        type: "CLC",
+        district: "Dr Kenneth Kaunda",
+        address: "45 Anderson Street, Klerksdorp, 2571",
+        latitude: "-26.8659",
+        longitude: "26.6687",
+        operationalStatus: "Active",
+        assessmentStatus: "Data Verified",
+        contactPerson: "Mrs. Sarah Johnson",
+        contactDetails: "018-462-1134 / sjohnson@nwcet.edu.za",
+        establishmentDate: new Date("2012-03-15"),
+        agreementType: "Partnership",
+        hostDepartment: "Department of Education - North West",
+        contractNumber: "NW-DOE-2020-045",
+        contractTerm: "5 years",
+        renewalDate: new Date("2025-03-31"),
+        monthlyCost: "N/A - Government Partnership",
+        totalArea: 1500,
+        classrooms: 6,
+        offices: 2,
+        computerLabs: 1,
+        workshops: 0,
+        library: false,
+        studentCommonAreas: true,
+        staffFacilities: true,
+        accessibility: "Ground floor access",
+        internetConnectivity: "Fiber - 50Mbps",
+        securityFeatures: "Alarm system, security gates",
+        buildingCondition: "Good",
+        electricalCondition: "Fair",
+        plumbingCondition: "Fair",
+        interiorCondition: "Good",
+        exteriorCondition: "Good",
+        lastRenovationDate: new Date("2019-08-22"),
+        visitDate: new Date("2024-01-15"),
+        visitedBy: "T. Mokoena",
+        verificationDate: new Date("2024-01-18"),
+        verifiedBy: "R. Smith",
+        staffCount: 12,
+        programCount: 8,
+        assetCount: 42,
+        notes: "Central location with good accessibility for learners"
+      });
+  
+      await this.createSite({
+        siteId: "SAT-001",
+        name: "Vryburg Satellite",
+        type: "Satellite",
+        district: "Dr Ruth Segomotsi Mompati",
+        address: "23 Market Street, Vryburg, 8601",
+        latitude: "-26.9548",
+        longitude: "24.7284",
+        operationalStatus: "Active",
+        assessmentStatus: "To Visit",
+        contactPerson: "Mr. J. Mokoena",
+        contactDetails: "053-927-4567 / jmokoena@nwcet.edu.za",
+        establishmentDate: new Date("2015-02-10"),
+        agreementType: "Rented",
+        hostDepartment: "",
+        contractNumber: "VB-2015-012",
+        contractTerm: "3 years",
+        renewalDate: new Date("2024-02-09"),
+        monthlyCost: "R18,000",
+        totalArea: 850,
+        classrooms: 3,
+        offices: 1,
+        computerLabs: 1,
+        workshops: 0,
+        library: false,
+        studentCommonAreas: false,
+        staffFacilities: false,
+        accessibility: "Single-step entrance",
+        internetConnectivity: "DSL - 20Mbps",
+        securityFeatures: "Basic alarm system",
+        buildingCondition: "Fair",
+        electricalCondition: "Fair",
+        plumbingCondition: "Fair",
+        interiorCondition: "Fair",
+        exteriorCondition: "Fair",
+        staffCount: 6,
+        programCount: 5,
+        assetCount: 28,
+        notes: "Satellite center serving rural communities in Vryburg area"
+      });
+  
+      await this.createSite({
+        siteId: "SAT-002",
+        name: "Zeerust Satellite",
+        type: "Satellite",
+        district: "Ngaka Modiri Molema",
+        address: "45 Church Street, Zeerust, 2865",
+        latitude: "-25.5276",
+        longitude: "26.0802",
+        operationalStatus: "Active",
+        assessmentStatus: "Visited",
+        contactPerson: "Ms. N. Tau",
+        contactDetails: "018-642-3456 / ntau@nwcet.edu.za",
+        establishmentDate: new Date("2016-05-20"),
+        agreementType: "Partnership",
+        hostDepartment: "Local Municipality",
+        contractNumber: "ZR-2016-008",
+        contractTerm: "5 years",
+        renewalDate: new Date("2026-05-19"),
+        monthlyCost: "R5,000 - Subsidized",
+        totalArea: 720,
+        classrooms: 2,
+        offices: 1,
+        computerLabs: 0,
+        workshops: 0,
+        library: false,
+        studentCommonAreas: false,
+        staffFacilities: false,
+        accessibility: "Ground floor access",
+        internetConnectivity: "LTE - 10Mbps",
+        securityFeatures: "Burglar bars, security gate",
+        buildingCondition: "Fair",
+        electricalCondition: "Fair",
+        plumbingCondition: "Poor",
+        interiorCondition: "Fair",
+        exteriorCondition: "Fair",
+        visitDate: new Date("2024-01-20"),
+        visitedBy: "J. Doe",
+        staffCount: 5,
+        programCount: 4,
+        assetCount: 18,
+        notes: "Municipal partnership providing low-cost facilities"
+      });
+  
+      await this.createSite({
+        siteId: "OPC-001",
+        name: "Wolmaransstad Center",
+        type: "Operational",
+        district: "Dr Kenneth Kaunda",
+        address: "12 Kruger Street, Wolmaransstad, 2630",
+        latitude: "-27.2194",
+        longitude: "25.9833",
+        operationalStatus: "Inactive",
+        assessmentStatus: "To Visit",
+        contactPerson: "Mr. P. Venter",
+        contactDetails: "018-596-1234 / pventer@nwcet.edu.za",
+        establishmentDate: new Date("2017-08-15"),
+        agreementType: "Rented",
+        hostDepartment: "",
+        contractNumber: "WM-2017-023",
+        contractTerm: "2 years",
+        renewalDate: new Date("2023-08-14"),
+        monthlyCost: "R12,000",
+        totalArea: 450,
+        classrooms: 2,
+        offices: 1,
+        computerLabs: 0,
+        workshops: 0,
+        library: false,
+        studentCommonAreas: false,
+        staffFacilities: false,
+        accessibility: "No accessibility features",
+        internetConnectivity: "DSL - 10Mbps",
+        securityFeatures: "Basic lock system",
+        buildingCondition: "Poor",
+        electricalCondition: "Poor",
+        plumbingCondition: "Poor",
+        interiorCondition: "Fair",
+        exteriorCondition: "Poor",
+        staffCount: 3,
+        programCount: 2,
+        assetCount: 12,
+        notes: "Currently inactive due to expired lease, seeking new location"
+      });
+    };
+
+    initSites();
+  }
+}
+
+// Export the storage implementation
+import { DatabaseStorage } from "./storage/database";
+
+// Determine which storage implementation to use
+const useDatabase = !!process.env.DATABASE_URL;
+
+// Export the appropriate storage implementation
+export const storage = useDatabase 
+  ? new DatabaseStorage() 
+  : new MemStorage();

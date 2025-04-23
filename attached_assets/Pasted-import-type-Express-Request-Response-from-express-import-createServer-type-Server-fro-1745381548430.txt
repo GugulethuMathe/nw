@@ -1,0 +1,687 @@
+import type { Express, Request, Response } from "express";
+import { createServer, type Server } from "http";
+import { storage } from "./storage";
+import { insertSiteSchema, insertStaffSchema, insertAssetSchema, insertProgramSchema, insertPolicySchema, insertExternalProjectSchema } from "@shared/schema";
+import { ZodError } from "zod";
+import { fromZodError } from "zod-validation-error";
+import session from "express-session";
+import passport from "passport";
+import { Strategy as LocalStrategy } from "passport-local";
+import MemoryStore from "memorystore";
+
+export async function registerRoutes(app: Express): Promise<Server> {
+  const httpServer = createServer(app);
+  
+  // Configure session management
+  const SessionStore = MemoryStore(session);
+  app.use(session({
+    secret: process.env.SESSION_SECRET || "nwcet-baseline-assessment-secret",
+    resave: false,
+    saveUninitialized: false,
+    cookie: { 
+      secure: process.env.NODE_ENV === "production", 
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    },
+    store: new SessionStore({
+      checkPeriod: 86400000 // prune expired entries every 24h
+    })
+  }));
+  
+  // Initialize Passport.js
+  app.use(passport.initialize());
+  app.use(passport.session());
+  
+  // Configure Passport local strategy
+  passport.use(new LocalStrategy(async (username, password, done) => {
+    try {
+      const user = await storage.getUserByUsername(username);
+      if (!user) {
+        return done(null, false, { message: "Incorrect username" });
+      }
+      if (user.password !== password) { // In production, use proper password hashing
+        return done(null, false, { message: "Incorrect password" });
+      }
+      return done(null, user);
+    } catch (err) {
+      return done(err);
+    }
+  }));
+  
+  passport.serializeUser((user: any, done) => {
+    done(null, user.id);
+  });
+  
+  passport.deserializeUser(async (id: number, done) => {
+    try {
+      const user = await storage.getUser(id);
+      done(null, user);
+    } catch (err) {
+      done(err);
+    }
+  });
+  
+  // Error handling middleware for Zod validation errors
+  const handleZodError = (err: unknown, res: Response) => {
+    if (err instanceof ZodError) {
+      const validationError = fromZodError(err);
+      return res.status(400).json({ 
+        message: "Validation error", 
+        errors: validationError.details 
+      });
+    }
+    console.error("Unexpected error:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  };
+  
+  // Authentication middleware
+  const requireAuth = (req: Request, res: Response, next: Function) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    next();
+  };
+  
+  // Auth routes
+  app.post("/api/auth/login", (req, res, next) => {
+    passport.authenticate("local", (err, user, info) => {
+      if (err) return next(err);
+      if (!user) return res.status(401).json({ message: info.message });
+      
+      req.logIn(user, (err) => {
+        if (err) return next(err);
+        return res.json({
+          id: user.id,
+          username: user.username,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role
+        });
+      });
+    })(req, res, next);
+  });
+  
+  app.post("/api/auth/logout", (req, res) => {
+    req.logout(() => {
+      res.json({ message: "Logged out successfully" });
+    });
+  });
+  
+  app.get("/api/auth/me", (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    const user = req.user as any;
+    res.json({
+      id: user.id,
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role
+    });
+  });
+  
+  // Sites routes
+  app.get("/api/sites", async (req, res) => {
+    try {
+      const sites = await storage.getSites();
+      res.json(sites);
+    } catch (err) {
+      console.error("Error fetching sites:", err);
+      res.status(500).json({ message: "Failed to fetch sites" });
+    }
+  });
+  
+  app.get("/api/sites/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid site ID" });
+      }
+      
+      const site = await storage.getSite(id);
+      if (!site) {
+        return res.status(404).json({ message: "Site not found" });
+      }
+      
+      res.json(site);
+    } catch (err) {
+      console.error("Error fetching site:", err);
+      res.status(500).json({ message: "Failed to fetch site" });
+    }
+  });
+  
+  app.post("/api/sites", requireAuth, async (req, res) => {
+    try {
+      const siteData = insertSiteSchema.parse(req.body);
+      const site = await storage.createSite(siteData);
+      res.status(201).json(site);
+    } catch (err) {
+      handleZodError(err, res);
+    }
+  });
+  
+  app.patch("/api/sites/:id", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid site ID" });
+      }
+      
+      // Partial validation of the update data
+      const partialSchema = insertSiteSchema.partial();
+      const siteData = partialSchema.parse(req.body);
+      
+      const updatedSite = await storage.updateSite(id, siteData);
+      if (!updatedSite) {
+        return res.status(404).json({ message: "Site not found" });
+      }
+      
+      res.json(updatedSite);
+    } catch (err) {
+      handleZodError(err, res);
+    }
+  });
+  
+  app.delete("/api/sites/:id", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid site ID" });
+      }
+      
+      const success = await storage.deleteSite(id);
+      if (!success) {
+        return res.status(404).json({ message: "Site not found" });
+      }
+      
+      res.status(204).end();
+    } catch (err) {
+      console.error("Error deleting site:", err);
+      res.status(500).json({ message: "Failed to delete site" });
+    }
+  });
+  
+  // Staff routes
+  app.get("/api/staff", async (req, res) => {
+    try {
+      const staff = await storage.getStaffMembers();
+      res.json(staff);
+    } catch (err) {
+      console.error("Error fetching staff:", err);
+      res.status(500).json({ message: "Failed to fetch staff" });
+    }
+  });
+  
+  app.get("/api/staff/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid staff ID" });
+      }
+      
+      const staffMember = await storage.getStaffMember(id);
+      if (!staffMember) {
+        return res.status(404).json({ message: "Staff member not found" });
+      }
+      
+      res.json(staffMember);
+    } catch (err) {
+      console.error("Error fetching staff member:", err);
+      res.status(500).json({ message: "Failed to fetch staff member" });
+    }
+  });
+  
+  app.get("/api/sites/:siteId/staff", async (req, res) => {
+    try {
+      const siteId = Number(req.params.siteId);
+      if (isNaN(siteId)) {
+        return res.status(400).json({ message: "Invalid site ID" });
+      }
+      
+      const site = await storage.getSite(siteId);
+      if (!site) {
+        return res.status(404).json({ message: "Site not found" });
+      }
+      
+      const staff = await storage.getStaffBySite(siteId);
+      res.json(staff);
+    } catch (err) {
+      console.error("Error fetching staff for site:", err);
+      res.status(500).json({ message: "Failed to fetch staff for site" });
+    }
+  });
+  
+  app.post("/api/staff", requireAuth, async (req, res) => {
+    try {
+      const staffData = insertStaffSchema.parse(req.body);
+      const staffMember = await storage.createStaffMember(staffData);
+      res.status(201).json(staffMember);
+    } catch (err) {
+      handleZodError(err, res);
+    }
+  });
+  
+  app.patch("/api/staff/:id", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid staff ID" });
+      }
+      
+      // Partial validation of the update data
+      const partialSchema = insertStaffSchema.partial();
+      const staffData = partialSchema.parse(req.body);
+      
+      const updatedStaff = await storage.updateStaffMember(id, staffData);
+      if (!updatedStaff) {
+        return res.status(404).json({ message: "Staff member not found" });
+      }
+      
+      res.json(updatedStaff);
+    } catch (err) {
+      handleZodError(err, res);
+    }
+  });
+  
+  app.delete("/api/staff/:id", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid staff ID" });
+      }
+      
+      const success = await storage.deleteStaffMember(id);
+      if (!success) {
+        return res.status(404).json({ message: "Staff member not found" });
+      }
+      
+      res.status(204).end();
+    } catch (err) {
+      console.error("Error deleting staff member:", err);
+      res.status(500).json({ message: "Failed to delete staff member" });
+    }
+  });
+  
+  // Assets routes
+  app.get("/api/assets", async (req, res) => {
+    try {
+      const assets = await storage.getAssets();
+      res.json(assets);
+    } catch (err) {
+      console.error("Error fetching assets:", err);
+      res.status(500).json({ message: "Failed to fetch assets" });
+    }
+  });
+  
+  app.get("/api/assets/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid asset ID" });
+      }
+      
+      const asset = await storage.getAsset(id);
+      if (!asset) {
+        return res.status(404).json({ message: "Asset not found" });
+      }
+      
+      res.json(asset);
+    } catch (err) {
+      console.error("Error fetching asset:", err);
+      res.status(500).json({ message: "Failed to fetch asset" });
+    }
+  });
+  
+  app.get("/api/sites/:siteId/assets", async (req, res) => {
+    try {
+      const siteId = Number(req.params.siteId);
+      if (isNaN(siteId)) {
+        return res.status(400).json({ message: "Invalid site ID" });
+      }
+      
+      const site = await storage.getSite(siteId);
+      if (!site) {
+        return res.status(404).json({ message: "Site not found" });
+      }
+      
+      const assets = await storage.getAssetsBySite(siteId);
+      res.json(assets);
+    } catch (err) {
+      console.error("Error fetching assets for site:", err);
+      res.status(500).json({ message: "Failed to fetch assets for site" });
+    }
+  });
+  
+  app.post("/api/assets", requireAuth, async (req, res) => {
+    try {
+      const assetData = insertAssetSchema.parse(req.body);
+      const asset = await storage.createAsset(assetData);
+      res.status(201).json(asset);
+    } catch (err) {
+      handleZodError(err, res);
+    }
+  });
+  
+  app.patch("/api/assets/:id", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid asset ID" });
+      }
+      
+      // Partial validation of the update data
+      const partialSchema = insertAssetSchema.partial();
+      const assetData = partialSchema.parse(req.body);
+      
+      const updatedAsset = await storage.updateAsset(id, assetData);
+      if (!updatedAsset) {
+        return res.status(404).json({ message: "Asset not found" });
+      }
+      
+      res.json(updatedAsset);
+    } catch (err) {
+      handleZodError(err, res);
+    }
+  });
+  
+  app.delete("/api/assets/:id", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid asset ID" });
+      }
+      
+      const success = await storage.deleteAsset(id);
+      if (!success) {
+        return res.status(404).json({ message: "Asset not found" });
+      }
+      
+      res.status(204).end();
+    } catch (err) {
+      console.error("Error deleting asset:", err);
+      res.status(500).json({ message: "Failed to delete asset" });
+    }
+  });
+  
+  // Programs routes
+  app.get("/api/programs", async (req, res) => {
+    try {
+      const programs = await storage.getPrograms();
+      res.json(programs);
+    } catch (err) {
+      console.error("Error fetching programs:", err);
+      res.status(500).json({ message: "Failed to fetch programs" });
+    }
+  });
+  
+  app.get("/api/programs/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid program ID" });
+      }
+      
+      const program = await storage.getProgram(id);
+      if (!program) {
+        return res.status(404).json({ message: "Program not found" });
+      }
+      
+      res.json(program);
+    } catch (err) {
+      console.error("Error fetching program:", err);
+      res.status(500).json({ message: "Failed to fetch program" });
+    }
+  });
+  
+  app.get("/api/sites/:siteId/programs", async (req, res) => {
+    try {
+      const siteId = Number(req.params.siteId);
+      if (isNaN(siteId)) {
+        return res.status(400).json({ message: "Invalid site ID" });
+      }
+      
+      const site = await storage.getSite(siteId);
+      if (!site) {
+        return res.status(404).json({ message: "Site not found" });
+      }
+      
+      const programs = await storage.getProgramsBySite(siteId);
+      res.json(programs);
+    } catch (err) {
+      console.error("Error fetching programs for site:", err);
+      res.status(500).json({ message: "Failed to fetch programs for site" });
+    }
+  });
+  
+  app.post("/api/programs", requireAuth, async (req, res) => {
+    try {
+      const programData = insertProgramSchema.parse(req.body);
+      const program = await storage.createProgram(programData);
+      res.status(201).json(program);
+    } catch (err) {
+      handleZodError(err, res);
+    }
+  });
+  
+  app.patch("/api/programs/:id", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid program ID" });
+      }
+      
+      // Partial validation of the update data
+      const partialSchema = insertProgramSchema.partial();
+      const programData = partialSchema.parse(req.body);
+      
+      const updatedProgram = await storage.updateProgram(id, programData);
+      if (!updatedProgram) {
+        return res.status(404).json({ message: "Program not found" });
+      }
+      
+      res.json(updatedProgram);
+    } catch (err) {
+      handleZodError(err, res);
+    }
+  });
+  
+  app.delete("/api/programs/:id", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid program ID" });
+      }
+      
+      const success = await storage.deleteProgram(id);
+      if (!success) {
+        return res.status(404).json({ message: "Program not found" });
+      }
+      
+      res.status(204).end();
+    } catch (err) {
+      console.error("Error deleting program:", err);
+      res.status(500).json({ message: "Failed to delete program" });
+    }
+  });
+  
+  // Policies routes
+  app.get("/api/policies", async (req, res) => {
+    try {
+      const policies = await storage.getPolicies();
+      res.json(policies);
+    } catch (err) {
+      console.error("Error fetching policies:", err);
+      res.status(500).json({ message: "Failed to fetch policies" });
+    }
+  });
+  
+  app.get("/api/policies/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid policy ID" });
+      }
+      
+      const policy = await storage.getPolicy(id);
+      if (!policy) {
+        return res.status(404).json({ message: "Policy not found" });
+      }
+      
+      res.json(policy);
+    } catch (err) {
+      console.error("Error fetching policy:", err);
+      res.status(500).json({ message: "Failed to fetch policy" });
+    }
+  });
+  
+  app.post("/api/policies", requireAuth, async (req, res) => {
+    try {
+      const policyData = insertPolicySchema.parse(req.body);
+      const policy = await storage.createPolicy(policyData);
+      res.status(201).json(policy);
+    } catch (err) {
+      handleZodError(err, res);
+    }
+  });
+  
+  app.patch("/api/policies/:id", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid policy ID" });
+      }
+      
+      // Partial validation of the update data
+      const partialSchema = insertPolicySchema.partial();
+      const policyData = partialSchema.parse(req.body);
+      
+      const updatedPolicy = await storage.updatePolicy(id, policyData);
+      if (!updatedPolicy) {
+        return res.status(404).json({ message: "Policy not found" });
+      }
+      
+      res.json(updatedPolicy);
+    } catch (err) {
+      handleZodError(err, res);
+    }
+  });
+  
+  app.delete("/api/policies/:id", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid policy ID" });
+      }
+      
+      const success = await storage.deletePolicy(id);
+      if (!success) {
+        return res.status(404).json({ message: "Policy not found" });
+      }
+      
+      res.status(204).end();
+    } catch (err) {
+      console.error("Error deleting policy:", err);
+      res.status(500).json({ message: "Failed to delete policy" });
+    }
+  });
+  
+  // External Projects routes
+  app.get("/api/external-projects", async (req, res) => {
+    try {
+      const projects = await storage.getExternalProjects();
+      res.json(projects);
+    } catch (err) {
+      console.error("Error fetching external projects:", err);
+      res.status(500).json({ message: "Failed to fetch external projects" });
+    }
+  });
+  
+  app.get("/api/external-projects/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid project ID" });
+      }
+      
+      const project = await storage.getExternalProject(id);
+      if (!project) {
+        return res.status(404).json({ message: "External project not found" });
+      }
+      
+      res.json(project);
+    } catch (err) {
+      console.error("Error fetching external project:", err);
+      res.status(500).json({ message: "Failed to fetch external project" });
+    }
+  });
+  
+  app.post("/api/external-projects", requireAuth, async (req, res) => {
+    try {
+      const projectData = insertExternalProjectSchema.parse(req.body);
+      const project = await storage.createExternalProject(projectData);
+      res.status(201).json(project);
+    } catch (err) {
+      handleZodError(err, res);
+    }
+  });
+  
+  app.patch("/api/external-projects/:id", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid project ID" });
+      }
+      
+      // Partial validation of the update data
+      const partialSchema = insertExternalProjectSchema.partial();
+      const projectData = partialSchema.parse(req.body);
+      
+      const updatedProject = await storage.updateExternalProject(id, projectData);
+      if (!updatedProject) {
+        return res.status(404).json({ message: "External project not found" });
+      }
+      
+      res.json(updatedProject);
+    } catch (err) {
+      handleZodError(err, res);
+    }
+  });
+  
+  app.delete("/api/external-projects/:id", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid project ID" });
+      }
+      
+      const success = await storage.deleteExternalProject(id);
+      if (!success) {
+        return res.status(404).json({ message: "External project not found" });
+      }
+      
+      res.status(204).end();
+    } catch (err) {
+      console.error("Error deleting external project:", err);
+      res.status(500).json({ message: "Failed to delete external project" });
+    }
+  });
+
+  // File upload handling for offline sync
+  app.post("/api/sync", requireAuth, (req, res) => {
+    try {
+      // Process the sync data
+      // In a real implementation, this would handle merging data from offline clients
+      res.json({ 
+        success: true, 
+        message: "Data synchronized successfully",
+        timestamp: new Date()
+      });
+    } catch (err) {
+      console.error("Error syncing data:", err);
+      res.status(500).json({ message: "Failed to sync data" });
+    }
+  });
+  
+  return httpServer;
+}
