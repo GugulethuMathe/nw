@@ -149,7 +149,7 @@ const StaffComponent: React.FC = () => {
                       <div className="flex space-x-2">
                         <Button variant="outline" size="sm" asChild>
                           <Link href={`/staff/${member.id}`}>
-                            <a>View</a>
+                            <span>View</span>
                           </Link>
                         </Button>
                         <Button variant="outline" size="sm">

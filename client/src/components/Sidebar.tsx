@@ -56,8 +56,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
           {navItems.map((item) => (
             <li key={item.id}>
               <Link href={item.path}>
-                <a 
-                  className={`flex items-center px-4 py-3 transition-colors ${
+                <div 
+                  className={`flex items-center px-4 py-3 transition-colors cursor-pointer ${
                     isActive(item.path) 
                       ? "bg-primary-50 text-primary-500 font-medium" 
                       : "text-neutral-700 hover:bg-primary-50 hover:text-primary-500"
@@ -65,7 +65,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
                 >
                   <i className={`fas ${item.icon} w-6`}></i>
                   <span>{item.label}</span>
-                </a>
+                </div>
               </Link>
             </li>
           ))}
@@ -74,16 +74,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
       
       <div className="absolute bottom-0 w-full border-t border-neutral-200 px-4 py-3">
         <Link href="/settings">
-          <a className="flex items-center text-neutral-500 hover:text-primary-500 transition-colors cursor-pointer">
+          <div className="flex items-center text-neutral-500 hover:text-primary-500 transition-colors cursor-pointer">
             <i className="fas fa-cog w-6"></i>
             <span>Settings</span>
-          </a>
+          </div>
         </Link>
         <Link href="/logout">
-          <a className="flex items-center text-neutral-500 hover:text-primary-500 transition-colors cursor-pointer mt-3">
+          <div className="flex items-center text-neutral-500 hover:text-primary-500 transition-colors cursor-pointer mt-3">
             <i className="fas fa-sign-out-alt w-6"></i>
             <span>Logout</span>
-          </a>
+          </div>
         </Link>
       </div>
     </aside>
