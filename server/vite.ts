@@ -20,12 +20,6 @@ export function log(message: string, source = "express") {
 }
 
 export async function setupVite(app: Express, server: Server) {
-  const serverOptions = {
-    middlewareMode: true,
-    hmr: { server },
-    allowedHosts: true,
-  };
-
   const vite = await createViteServer({
     ...viteConfig,
     configFile: false,
@@ -36,7 +30,11 @@ export async function setupVite(app: Express, server: Server) {
         process.exit(1);
       },
     },
-    server: serverOptions,
+    server: { // Define server options directly here
+        middlewareMode: true,
+        hmr: { server },
+        allowedHosts: true, // Pass true directly
+    },
     appType: "custom",
   });
 
@@ -68,7 +66,8 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 export function serveStatic(app: Express) {
-  const distPath = path.resolve(import.meta.dirname, "public");
+  // Point to the public directory at the project root, not server/public
+  const distPath = path.resolve(import.meta.dirname, "..", "public");
 
   if (!fs.existsSync(distPath)) {
     throw new Error(

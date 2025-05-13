@@ -8,6 +8,59 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 
+// Add Leaflet type declaration
+declare global {
+  interface Window {
+    L: any;
+  }
+}
+
+// Make L available in this file
+const L = typeof window !== 'undefined' ? window.L : null;
+
+// Add custom CSS for map markers
+const addCustomMarkerStyles = () => {
+  if (typeof document === 'undefined') return;
+  
+  // Check if styles already exist
+  if (document.getElementById('custom-marker-styles')) return;
+  
+  const styleTag = document.createElement('style');
+  styleTag.id = 'custom-marker-styles';
+  styleTag.innerHTML = `
+    .custom-marker-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      border: 2px solid white;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+      width: 30px !important;
+      height: 30px !important;
+      margin-left: -15px !important;
+      margin-top: -15px !important;
+    }
+    
+    .bg-primary-500 {
+      background-color: #1976D2;
+    }
+    
+    .bg-success-light {
+      background-color: #4CAF50;
+    }
+    
+    .bg-warning-light {
+      background-color: #FF9800;
+    }
+    
+    .custom-marker-icon i {
+      font-size: 14px;
+    }
+  `;
+  
+  document.head.appendChild(styleTag);
+};
+
 const MapView: React.FC = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const { data: sites, isLoading } = useQuery<Site[]>({
@@ -37,6 +90,9 @@ const MapView: React.FC = () => {
   // Initialize Leaflet map when component mounts
   useEffect(() => {
     if (!mapRef.current || mapLoaded) return;
+    
+    // Add custom marker styles
+    addCustomMarkerStyles();
 
     // Load Leaflet CSS
     const leafletCss = document.createElement("link");
@@ -65,18 +121,18 @@ const MapView: React.FC = () => {
       
       clusterScript.onload = () => {
         // Initialize map after all scripts are loaded
-        if (!mapRef.current) return;
+        if (!mapRef.current || !window.L) return;
 
         // Center on South Africa - approximately centered on North West Province
-        const map = L.map(mapRef.current).setView([-26.77, 25.09], 7);
+        const map = window.L.map(mapRef.current).setView([-26.77, 25.09], 7);
 
         // Add tile layer
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
 
         // Add scale control
-        L.control.scale().addTo(map);
+        window.L.control.scale().addTo(map);
 
         setMapInstance(map);
         setMapLoaded(true);
@@ -122,7 +178,7 @@ const MapView: React.FC = () => {
     });
 
     // Create a marker cluster group
-    const markerCluster = L.markerClusterGroup({
+    const markerCluster = window.L.markerClusterGroup({
       disableClusteringAtZoom: 10,
       spiderfyOnMaxZoom: true,
       showCoverageOnHover: false,
@@ -139,25 +195,34 @@ const MapView: React.FC = () => {
           site.type === "Satellite" ? "#4CAF50" : 
           "#FF9800";
 
-        // Create marker
-        const marker = L.circleMarker([site.gpsLat!, site.gpsLng!], {
-          radius: 8,
-          fillColor: markerColor,
-          color: "#fff",
-          weight: 2,
-          opacity: 1,
-          fillOpacity: 0.8
+        // Create custom icon based on site type
+        const iconHtml = `
+          <div class="flex items-center justify-center w-full h-full">
+            <i class="fas ${
+              site.type === "CLC" ? "fa-building" : 
+              site.type === "Satellite" ? "fa-satellite" : 
+              "fa-broadcast-tower"
+            } text-white"></i>
+          </div>
+        `;
+        
+        const customIcon = window.L.divIcon({
+          className: `custom-marker-icon bg-${
+            site.type === "CLC" ? "primary-500" : 
+            site.type === "Satellite" ? "success-light" : 
+            "warning-light"
+          }`,
+          html: iconHtml,
+          iconSize: [30, 30],
+          iconAnchor: [15, 15]
         });
 
-        // Add popup
-        marker.bindPopup(`
-          <div class="p-2">
-            <h3 class="font-medium">${site.name}</h3>
-            <p class="text-sm">${site.type} - ${site.district}</p>
-            <p class="text-sm">Status: ${site.operationalStatus}</p>
-            <button class="text-primary-500 text-sm view-site-details" data-site-id="${site.id}">View Details</button>
-          </div>
-        `);
+        // Create marker with custom icon
+        const marker = window.L.marker([site.gpsLat!, site.gpsLng!], {
+          icon: customIcon
+        });
+
+        // We'll remove the popup and only use the detail panel
 
         // Add event listener to the marker
         marker.on('click', () => {
@@ -195,7 +260,7 @@ const MapView: React.FC = () => {
 
     // If we have filtered sites with coordinates, fit the map to these bounds
     if (newMarkers.length > 0) {
-      const group = L.featureGroup(newMarkers);
+      const group = window.L.featureGroup(newMarkers);
       mapInstance.fitBounds(group.getBounds(), { padding: [50, 50] });
     }
   }, [sites, mapLoaded, mapInstance, filters, searchTerm]);
@@ -360,7 +425,7 @@ const MapView: React.FC = () => {
                   
                   {/* Site Detail Overlay - shown when a site is selected */}
                   {selectedSite && (
-                    <div className="absolute top-4 right-4 w-80 bg-white rounded-md shadow-md z-10 overflow-hidden">
+                    <div className="absolute top-4 right-4 w-80 bg-white rounded-md shadow-lg z-[1000] overflow-hidden border border-primary-100">
                       <div className="p-4 bg-primary-50 border-b border-primary-100 flex justify-between items-center">
                         <h3 className="font-medium text-neutral-800">{selectedSite.name}</h3>
                         <button 

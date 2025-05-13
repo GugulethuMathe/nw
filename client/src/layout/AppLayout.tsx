@@ -23,7 +23,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   return (
     <div className="min-h-screen">
       <AppHeader onToggleSidebar={handleToggleSidebar} isSidebarOpen={isSidebarOpen} />
-      <Sidebar isOpen={isSidebarOpen} />
+      <Sidebar isOpen={isSidebarOpen} onClose={handleToggleSidebar} />
       
       <main 
         className={`pt-16 transition-all duration-300 ${isSidebarOpen ? "ml-64" : ""}`}

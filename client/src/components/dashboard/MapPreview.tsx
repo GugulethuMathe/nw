@@ -6,6 +6,56 @@ import { Site } from "@shared/schema";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+// Add Leaflet type declaration
+declare global {
+  interface Window {
+    L: any;
+  }
+}
+
+// Add custom CSS for map markers
+const addCustomMarkerStyles = () => {
+  if (typeof document === 'undefined') return;
+  
+  // Check if styles already exist
+  if (document.getElementById('custom-marker-styles-preview')) return;
+  
+  const styleTag = document.createElement('style');
+  styleTag.id = 'custom-marker-styles-preview';
+  styleTag.innerHTML = `
+    .custom-marker-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      border: 2px solid white;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+      width: 22px !important;
+      height: 22px !important;
+      margin-left: -11px !important;
+      margin-top: -11px !important;
+    }
+    
+    .bg-primary-500 {
+      background-color: #1976D2;
+    }
+    
+    .bg-success-light {
+      background-color: #4CAF50;
+    }
+    
+    .bg-warning-light {
+      background-color: #FF9800;
+    }
+    
+    .custom-marker-icon i {
+      font-size: 12px;
+    }
+  `;
+  
+  document.head.appendChild(styleTag);
+};
+
 const MapPreview: React.FC = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const { data: sites, isLoading } = useQuery<Site[]>({
@@ -20,10 +70,14 @@ const MapPreview: React.FC = () => {
     operationalCenters: true,
     status: "all",
   });
+  const [selectedSite, setSelectedSite] = useState<Site | null>(null);
 
   // Initialize Leaflet map when component mounts
   useEffect(() => {
     if (!mapRef.current || mapLoaded) return;
+    
+    // Add custom marker styles
+    addCustomMarkerStyles();
 
     // Load Leaflet CSS
     const leafletCss = document.createElement("link");
@@ -31,23 +85,45 @@ const MapPreview: React.FC = () => {
     leafletCss.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
     document.head.appendChild(leafletCss);
 
-    // Load Leaflet JS
+    // Load Leaflet JS and MarkerCluster
     const script = document.createElement("script");
     script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
     script.onload = () => {
-      // Initialize map after Leaflet is loaded
-      if (!mapRef.current) return;
+      // Load MarkerCluster plugin after Leaflet
+      const clusterScript = document.createElement("script");
+      clusterScript.src = "https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js";
+      
+      // Also load the CSS for MarkerCluster
+      const clusterCss = document.createElement("link");
+      clusterCss.rel = "stylesheet";
+      clusterCss.href = "https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css";
+      document.head.appendChild(clusterCss);
+      
+      const clusterDefaultCss = document.createElement("link");
+      clusterDefaultCss.rel = "stylesheet";
+      clusterDefaultCss.href = "https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css";
+      document.head.appendChild(clusterDefaultCss);
+      
+      clusterScript.onload = () => {
+        // Initialize map after all scripts are loaded
+        if (!mapRef.current || !window.L) return;
 
-      // Center on South Africa
-      const map = L.map(mapRef.current).setView([-29.0, 25.0], 6);
+        // Center on North West Province
+        const map = window.L.map(mapRef.current).setView([-26.77, 25.09], 7);
 
-      // Add tile layer
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-      }).addTo(map);
+        // Add tile layer
+        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
 
-      setMapInstance(map);
-      setMapLoaded(true);
+        // Add scale control
+        window.L.control.scale().addTo(map);
+
+        setMapInstance(map);
+        setMapLoaded(true);
+      };
+      
+      document.head.appendChild(clusterScript);
     };
     document.head.appendChild(script);
 
@@ -64,7 +140,9 @@ const MapPreview: React.FC = () => {
     if (!mapLoaded || !mapInstance || !sites) return;
 
     // Clear existing markers
-    markers.forEach(marker => marker.remove());
+    markers.forEach(marker => {
+      if (marker) marker.remove();
+    });
 
     // Filter sites based on current filters
     const filteredSites = sites.filter(site => {
@@ -74,44 +152,73 @@ const MapPreview: React.FC = () => {
         (site.type === "Operational" && filters.operationalCenters)
       );
       
-      const statusMatch = filters.status === "all" || site.operationalStatus.toLowerCase() === filters.status;
+      const statusMatch = filters.status === "all" || site.operationalStatus.toLowerCase() === filters.status.toLowerCase();
       
       return typeMatch && statusMatch;
     });
 
+    // Create a marker cluster group
+    const markerCluster = window.L.markerClusterGroup({
+      disableClusteringAtZoom: 10,
+      spiderfyOnMaxZoom: true,
+      showCoverageOnHover: false,
+      zoomToBoundsOnClick: true
+    });
+
     // Create new markers for filtered sites
-    const newMarkers = filteredSites.map(site => {
-      if (!site.gpsLat || !site.gpsLng) return null;
+    const newMarkers = filteredSites
+      .filter(site => site.gpsLat && site.gpsLng) // Only sites with coordinates
+      .map(site => {
+        // Choose marker color and icon based on site type
+        const iconHtml = `
+          <div class="flex items-center justify-center w-full h-full">
+            <i class="fas ${
+              site.type === "CLC" ? "fa-building" :
+              site.type === "Satellite" ? "fa-satellite" :
+              "fa-broadcast-tower"
+            } text-white"></i>
+          </div>
+        `;
+        
+        const customIcon = window.L.divIcon({
+          className: `custom-marker-icon bg-${
+            site.type === "CLC" ? "primary-500" :
+            site.type === "Satellite" ? "success-light" :
+            "warning-light"
+          }`,
+          html: iconHtml,
+          iconSize: [22, 22],
+          iconAnchor: [11, 11]
+        });
 
-      // Choose marker color based on site type
-      const markerColor = 
-        site.type === "CLC" ? "blue" : 
-        site.type === "Satellite" ? "green" : 
-        "orange";
+        // Create marker with custom icon
+        const marker = window.L.marker([site.gpsLat!, site.gpsLng!], {
+          icon: customIcon
+        });
 
-      // Create marker
-      const marker = L.marker([site.gpsLat, site.gpsLng], {
-        icon: L.divIcon({
-          className: `bg-${markerColor}-500 w-4 h-4 rounded-full border-2 border-white`,
-          iconSize: [16, 16],
-          iconAnchor: [8, 8],
-        })
-      }).addTo(mapInstance);
+        // Add event listener to the marker
+        marker.on('click', () => {
+          setSelectedSite(site);
+        });
 
-      // Add popup
-      marker.bindPopup(`
-        <div class="p-2">
-          <h3 class="font-medium">${site.name}</h3>
-          <p class="text-sm">${site.type} - ${site.district}</p>
-          <p class="text-sm">Status: ${site.operationalStatus}</p>
-          <a href="/sites/${site.id}" class="text-primary-500 text-sm">View Details</a>
-        </div>
-      `);
+        return marker;
+      });
 
-      return marker;
-    }).filter(Boolean);
+    // Add all markers to the cluster
+    newMarkers.forEach(marker => {
+      markerCluster.addLayer(marker);
+    });
 
-    setMarkers(newMarkers as any[]);
+    // Add the cluster to the map
+    mapInstance.addLayer(markerCluster);
+
+    setMarkers([...newMarkers, markerCluster]);
+
+    // If we have filtered sites with coordinates, fit the map to these bounds
+    if (newMarkers.length > 0) {
+      const group = window.L.featureGroup(newMarkers);
+      mapInstance.fitBounds(group.getBounds(), { padding: [30, 30] });
+    }
   }, [sites, mapLoaded, mapInstance, filters]);
 
   const handleFilterChange = (filterName: string, value: any) => {
@@ -151,34 +258,37 @@ const MapPreview: React.FC = () => {
               <div className="p-3">
                 <div className="space-y-2">
                   <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id="clcSites" 
+                    <Checkbox
+                      id="clcSites"
                       checked={filters.clcSites}
                       onCheckedChange={(checked) => handleFilterChange('clcSites', checked)}
                     />
-                    <label htmlFor="clcSites" className="text-sm text-neutral-700">
+                    <label htmlFor="clcSites" className="text-sm text-neutral-700 flex items-center">
+                      <span className="w-3 h-3 bg-primary-500 rounded-full inline-block mr-2"></span>
                       CLC Sites
                     </label>
                   </div>
                   
                   <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id="satelliteSites" 
+                    <Checkbox
+                      id="satelliteSites"
                       checked={filters.satelliteSites}
                       onCheckedChange={(checked) => handleFilterChange('satelliteSites', checked)}
                     />
-                    <label htmlFor="satelliteSites" className="text-sm text-neutral-700">
+                    <label htmlFor="satelliteSites" className="text-sm text-neutral-700 flex items-center">
+                      <span className="w-3 h-3 bg-success-light rounded-full inline-block mr-2"></span>
                       Satellite Sites
                     </label>
                   </div>
                   
                   <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id="operationalCenters" 
+                    <Checkbox
+                      id="operationalCenters"
                       checked={filters.operationalCenters}
                       onCheckedChange={(checked) => handleFilterChange('operationalCenters', checked)}
                     />
-                    <label htmlFor="operationalCenters" className="text-sm text-neutral-700">
+                    <label htmlFor="operationalCenters" className="text-sm text-neutral-700 flex items-center">
+                      <span className="w-3 h-3 bg-warning-light rounded-full inline-block mr-2"></span>
                       Operational Centers
                     </label>
                   </div>
@@ -186,7 +296,7 @@ const MapPreview: React.FC = () => {
                 
                 <div className="mt-3 pt-3 border-t border-neutral-200">
                   <label className="text-sm text-neutral-700 block mb-1">Status</label>
-                  <Select 
+                  <Select
                     value={filters.status}
                     onValueChange={(value) => handleFilterChange('status', value)}
                   >
@@ -203,6 +313,49 @@ const MapPreview: React.FC = () => {
                 </div>
               </div>
             </div>
+            
+            {/* Site Detail Overlay - shown when a site is selected */}
+            {selectedSite && (
+              <div className="absolute bottom-4 right-4 w-64 bg-white rounded-md shadow-lg z-[1000] overflow-hidden border border-primary-100">
+                <div className="p-3 bg-primary-50 border-b border-primary-100 flex justify-between items-center">
+                  <h3 className="font-medium text-neutral-800 text-sm">{selectedSite.name}</h3>
+                  <button
+                    className="text-neutral-500 hover:text-neutral-800 text-xs"
+                    onClick={() => setSelectedSite(null)}
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                </div>
+                <div className="p-3">
+                  <div className="flex items-center mb-2">
+                    <div className="w-6 h-6 rounded-full bg-primary-100 text-primary-500 flex items-center justify-center mr-2">
+                      <i className={`fas ${selectedSite.type === "CLC" ? "fa-building" : selectedSite.type === "Satellite" ? "fa-satellite" : "fa-broadcast-tower"}`}></i>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium">{selectedSite.type} Site</p>
+                      <p className="text-xs text-neutral-500">{selectedSite.siteId}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-1 text-xs mb-3">
+                    <div className="flex">
+                      <span className="text-neutral-500 w-20">District:</span>
+                      <span className="text-neutral-800">{selectedSite.district}</span>
+                    </div>
+                    <div className="flex">
+                      <span className="text-neutral-500 w-20">Status:</span>
+                      <span className="text-neutral-800">{selectedSite.operationalStatus}</span>
+                    </div>
+                  </div>
+                  
+                  <Link href={`/sites/${selectedSite.id}`}>
+                    <a className="text-primary-500 hover:text-primary-600 text-xs font-medium">
+                      View Full Details <i className="fas fa-arrow-right ml-1"></i>
+                    </a>
+                  </Link>
+                </div>
+              </div>
+            )}
           </>
         )}
       </CardContent>

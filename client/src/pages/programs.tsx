@@ -8,6 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DownloadCloud } from "lucide-react";
+import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
+import * as XLSX from "xlsx";
+
+const ITEMS_PER_PAGE = 10;
 
 const Programs: React.FC = () => {
   const { data: programs, isLoading } = useQuery<Program[]>({
@@ -17,10 +22,11 @@ const Programs: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
   
   // Get unique categories from programs
   const categories = programs 
-    ? [...new Set(programs.map(program => program.category))]
+    ? Array.from(new Set(programs.map(program => program.category)))
     : [];
   
   // Filter programs based on search, category, and status
@@ -35,6 +41,11 @@ const Programs: React.FC = () => {
     
     return matchesSearch && matchesCategory && matchesStatus;
   });
+
+  // Calculate pagination
+  const totalPages = filteredPrograms ? Math.ceil(filteredPrograms.length / ITEMS_PER_PAGE) : 0;
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedPrograms = filteredPrograms?.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
@@ -60,6 +71,32 @@ const Programs: React.FC = () => {
     return total + (program.enrollmentCount || 0);
   }, 0) || 0;
 
+  const handleExportExcel = () => {
+    if (!programs || programs.length === 0) return;
+    
+    const workbook = XLSX.utils.book_new();
+    
+    const exportData = programs.map(program => ({
+      'Program ID': program.programId,
+      'Name': program.name,
+      'Category': program.category,
+      'Status': program.status,
+      'Enrollment': program.enrollmentCount || 'Not recorded',
+      'Start Date': program.startDate || 'Not specified',
+      'End Date': program.endDate || 'Not specified',
+      'Description': program.description || 'No description'
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Programs');
+    
+    // Auto-size columns
+    const cols = Object.keys(exportData[0]).map(() => ({ wch: 15 }));
+    worksheet['!cols'] = cols;
+
+    XLSX.writeFile(workbook, `programs-export-${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
@@ -69,10 +106,18 @@ const Programs: React.FC = () => {
             Manage educational programs across all centers
           </p>
         </div>
-        <div className="mt-4 md:mt-0">
-          <Button>
-            <i className="fas fa-plus mr-2"></i>
-            Add New Program
+        <div className="mt-4 md:mt-0 flex items-center gap-2">
+          <Button variant="outline" onClick={handleExportExcel}>
+            <DownloadCloud className="h-4 w-4 mr-2" />
+            Export Excel
+          </Button>
+          <Button asChild>
+            <Link href="/programs/add">
+              <a>
+                <i className="fas fa-plus mr-2"></i>
+                Add New Program
+              </a>
+            </Link>
           </Button>
         </div>
       </div>
@@ -172,53 +217,127 @@ const Programs: React.FC = () => {
             <div className="p-8 flex justify-center">
               <div className="w-8 h-8 border-4 border-primary-200 border-t-primary-500 rounded-full animate-spin"></div>
             </div>
-          ) : filteredPrograms && filteredPrograms.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Program</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Enrollment</TableHead>
-                  <TableHead>Period</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredPrograms.map((program) => (
-                  <TableRow key={program.id}>
-                    <TableCell>
-                      <div className="font-medium">{program.name}</div>
-                      <div className="text-sm text-neutral-500">{program.programId}</div>
-                    </TableCell>
-                    <TableCell>{program.category}</TableCell>
-                    <TableCell>
-                      <Badge className={getStatusBadgeClass(program.status)}>
-                        {program.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{program.enrollmentCount || "Not recorded"}</TableCell>
-                    <TableCell>
-                      {program.startDate && program.endDate 
-                        ? `${program.startDate} - ${program.endDate}`
-                        : program.startDate || "Not specified"}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex space-x-2">
-                        <Button variant="outline" size="sm" asChild>
-                          <Link href={`/programs/${program.id}`}>
-                            <a>View</a>
-                          </Link>
-                        </Button>
-                        <Button variant="outline" size="sm">
-                          <i className="fas fa-edit"></i>
-                        </Button>
-                      </div>
-                    </TableCell>
+          ) : paginatedPrograms && paginatedPrograms.length > 0 ? (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Program</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Enrollment</TableHead>
+                    <TableHead>Period</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {paginatedPrograms.map((program) => (
+                    <TableRow key={program.id}>
+                      <TableCell>
+                        <div className="font-medium">{program.name}</div>
+                        <div className="text-sm text-neutral-500">{program.programId}</div>
+                      </TableCell>
+                      <TableCell>{program.category}</TableCell>
+                      <TableCell>
+                        <Badge className={getStatusBadgeClass(program.status)}>
+                          {program.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{program.enrollmentCount || "Not recorded"}</TableCell>
+                      <TableCell>
+                        {program.startDate && program.endDate 
+                          ? `${program.startDate} - ${program.endDate}`
+                          : program.startDate || "Not specified"}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex space-x-2">
+                          <Button variant="outline" size="sm" asChild>
+                            <Link href={`/programs/${program.id}`}>
+                              <a>View</a>
+                            </Link>
+                          </Button>
+                          <Button variant="outline" size="sm">
+                            <i className="fas fa-edit"></i>
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {/* Pagination */}
+              <div className="p-4 border-t">
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious 
+                        href="#" 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setCurrentPage(p => Math.max(1, p - 1));
+                        }}
+                        aria-disabled={currentPage === 1}
+                        className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                      />
+                    </PaginationItem>
+                    
+                    {Array.from({ length: totalPages }).map((_, i) => {
+                      const pageNumber = i + 1;
+                      
+                      if (
+                        pageNumber === 1 ||
+                        pageNumber === totalPages ||
+                        (pageNumber >= currentPage - 1 && pageNumber <= currentPage + 1)
+                      ) {
+                        return (
+                          <PaginationItem key={pageNumber}>
+                            <PaginationLink
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setCurrentPage(pageNumber);
+                              }}
+                              isActive={currentPage === pageNumber}
+                            >
+                              {pageNumber}
+                            </PaginationLink>
+                          </PaginationItem>
+                        );
+                      }
+                      
+                      if (
+                        pageNumber === currentPage - 2 ||
+                        pageNumber === currentPage + 2
+                      ) {
+                        return (
+                          <PaginationItem key={pageNumber}>
+                            <PaginationEllipsis />
+                          </PaginationItem>
+                        );
+                      }
+                      
+                      return null;
+                    })}
+                    
+                    <PaginationItem>
+                      <PaginationNext
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setCurrentPage(p => Math.min(totalPages, p + 1));
+                        }}
+                        aria-disabled={currentPage === totalPages}
+                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+                <div className="text-center mt-2 text-sm text-neutral-500">
+                  Showing {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, filteredPrograms?.length || 0)} of {filteredPrograms?.length || 0} programs
+                </div>
+              </div>
+            </>
           ) : (
             <div className="text-center py-12">
               <div className="text-5xl text-neutral-300 mb-3">

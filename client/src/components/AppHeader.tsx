@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { useOfflineStatus } from "@/hooks/useOfflineStatus";
+import { useAuth } from "@/contexts/AuthContext";
+import { useLocation } from "wouter";
 import logoPath from "@assets/logo.png";
 
 interface AppHeaderProps {
@@ -10,12 +12,12 @@ interface AppHeaderProps {
 const AppHeader: React.FC<AppHeaderProps> = ({ onToggleSidebar, isSidebarOpen = false }) => {
   const { isOffline, syncStatus } = useOfflineStatus();
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+  const { user, logout } = useAuth();
+  const [, navigate] = useLocation();
 
-  // Mock user data - would come from auth context in real app
-  const user = {
-    name: "John Doe",
-    initials: "JD",
-    role: "Field Assessor"
+  const handleLogout = () => {
+    logout();
+    navigate("/login", { replace: true });
   };
 
   return (
@@ -54,18 +56,25 @@ const AppHeader: React.FC<AppHeaderProps> = ({ onToggleSidebar, isSidebarOpen = 
               aria-label="Open user menu"
             >
               <div className="w-8 h-8 rounded-full bg-primary-700 flex items-center justify-center">
-                <span>{user.initials}</span>
+                <span>{user ? (user.name ? user.name.split(' ')[0][0].toUpperCase() : 'U') : 'G'}</span>
               </div>
-              <span className="ml-2 hidden sm:inline">{user.name}</span>
+              <span className="ml-2 hidden sm:inline">{user ? user.name : 'Guest'}</span>
               <i className="fas fa-chevron-down ml-1 text-xs"></i>
             </button>
             
             {isUserDropdownOpen && (
               <div className="absolute top-full right-0 mt-1 bg-white text-neutral-800 shadow-lg rounded-md py-2 w-48">
-                <div className="px-4 py-2 border-b border-neutral-200">
-                  <p className="font-medium">{user.name}</p>
-                  <p className="text-sm text-neutral-500">{user.role}</p>
-                </div>
+                {user ? (
+                  <div className="px-4 py-2 border-b border-neutral-200">
+                    <p className="font-medium">{user.name}</p>
+                    <p className="text-sm text-neutral-500">{user.role}</p>
+                  </div>
+                ) : (
+                  <div className="px-4 py-2 border-b border-neutral-200">
+                    <p className="font-medium">Guest</p>
+                    <p className="text-sm text-neutral-500">Please log in</p>
+                  </div>
+                )}
                 <a href="#profile" className="flex items-center px-4 py-2 hover:bg-neutral-50">
                   <i className="fas fa-user-circle w-5"></i>
                   <span>Profile</span>
@@ -75,10 +84,15 @@ const AppHeader: React.FC<AppHeaderProps> = ({ onToggleSidebar, isSidebarOpen = 
                   <span>Settings</span>
                 </a>
                 <div className="border-t border-neutral-200 mt-2"></div>
-                <a href="#logout" className="flex items-center px-4 py-2 hover:bg-neutral-50 text-error-light">
-                  <i className="fas fa-sign-out-alt w-5"></i>
-                  <span>Logout</span>
-                </a>
+                {user && (
+                  <button 
+                    onClick={handleLogout}
+                    className="flex items-center px-4 py-2 hover:bg-neutral-50 text-error-light w-full text-left"
+                  >
+                    <i className="fas fa-sign-out-alt w-5"></i>
+                    <span>Logout</span>
+                  </button>
+                )}
               </div>
             )}
           </div>

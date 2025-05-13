@@ -11,11 +11,27 @@ export const users = pgTable("users", {
   role: text("role").notNull(), // Admin, Project Manager, Data Analyst, Field Assessor, Viewer
   email: text("email"),
   phone: text("phone"),
+  status: text("status").default("active").notNull(), // active, inactive, suspended
+  lastLogin: timestamp("last_login"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertUserSchema = createInsertSchema(users).omit({ 
-  id: true 
-});
+export const insertUserSchema = createInsertSchema(users)
+  .omit({ 
+    id: true,
+    lastLogin: true,
+    createdAt: true,
+    updatedAt: true,
+    status: true
+  })
+  .extend({
+    password: z.string().min(6, "Password must be at least 6 characters"),
+    email: z.string().email("Invalid email format").nullable(),
+    role: z.enum(["Admin", "Project Manager", "Data Analyst", "Field Assessor", "Viewer"], {
+      required_error: "Role is required"
+    })
+  });
 
 // Site model
 export const sites = pgTable("sites", {
@@ -69,10 +85,9 @@ export const sites = pgTable("sites", {
 });
 
 export const insertSiteSchema = createInsertSchema(sites).omit({ 
-  id: true,
-  createdBy: true, 
-  lastVisitedBy: true,
-  lastVisitDate: true
+  id: true
+  // createdBy: true, // Allow createdBy to be part of InsertSite
+  // lastVisitedBy: true // Allow lastVisitedBy to be part of InsertSite
 });
 
 // Staff model
@@ -89,6 +104,11 @@ export const staff = pgTable("staff", {
   skills: json("skills").$type<string[]>(),
   workload: integer("workload"), // Hours per week
   siteId: integer("site_id").references(() => sites.id),
+  department: text("department"), // Department or division
+  startDate: text("start_date"), // Employment start date
+  contractEndDate: text("contract_end_date"), // Contract end date for non-permanent staff
+  employmentStatus: text("employment_status"), // Permanent, Contract, etc
+  notes: text("notes"), // Additional notes about the staff member
 });
 
 export const insertStaffSchema = createInsertSchema(staff).omit({ 
@@ -100,7 +120,17 @@ export const assets = pgTable("assets", {
   id: serial("id").primaryKey(),
   assetId: text("asset_id").notNull().unique(), // Custom ID (e.g., ASSET-001)
   name: text("name").notNull(),
+  type: text("type"), // NEW: Asset Type
   category: text("category").notNull(),
+  manufacturer: text("manufacturer"), // NEW
+  model: text("model"), // NEW
+  serialNumbers: json("serial_numbers").$type<string[]>().default([]).notNull(),
+  purchaseDate: text("purchase_date"), // NEW
+  purchasePrice: text("purchase_price"), // NEW (use text for simplicity, or real if you want numeric)
+  location: text("location"), // NEW
+  assignedTo: text("assigned_to"), // NEW
+  lastMaintenanceDate: text("last_maintenance_date"), // NEW
+  nextMaintenanceDate: text("next_maintenance_date"), // NEW
   description: text("description"),
   condition: text("condition").notNull(), // Good, Fair, Poor, Critical
   acquisitionDate: text("acquisition_date"),
@@ -109,6 +139,30 @@ export const assets = pgTable("assets", {
   images: json("images").$type<string[]>(),
   siteId: integer("site_id").references(() => sites.id),
 });
+
+// In your migration script, add the following SQL for the new columns:
+// You can use a migration tool or run this SQL directly if using PostgreSQL
+// Example for PostgreSQL:
+//
+// ALTER TABLE assets
+//   ADD COLUMN type TEXT,
+//   ADD COLUMN manufacturer TEXT,
+//   ADD COLUMN model TEXT,
+//   ADD COLUMN serial_number TEXT,
+//   ADD COLUMN purchase_date TEXT,
+//   ADD COLUMN purchase_price TEXT,
+//   ADD COLUMN location TEXT,
+//   ADD COLUMN assigned_to TEXT,
+//   ADD COLUMN last_maintenance_date TEXT,
+//   ADD COLUMN next_maintenance_date TEXT;
+//
+// If you use Drizzle Kit, generate and run a migration after updating schema.ts:
+// npx drizzle-kit generate:pg
+// npx drizzle-kit push:pg
+//
+// If you use another migration tool, add the above columns to your migration file.
+//
+// After migration, restart your backend and test asset creation and viewing again.
 
 export const insertAssetSchema = createInsertSchema(assets).omit({ 
   id: true 
@@ -142,11 +196,26 @@ export const activities = pgTable("activities", {
   relatedEntityType: text("related_entity_type"), // site, staff, asset, program
   performedBy: integer("performed_by").references(() => users.id),
   timestamp: timestamp("timestamp").defaultNow(),
+  metadata: json("metadata").$type<Record<string, any>>(), // For storing additional data like priority, category, status
 });
 
 export const insertActivitySchema = createInsertSchema(activities).omit({ 
   id: true,
   timestamp: true
+});
+
+// District model
+export const districts = pgTable("districts", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  region: text("region"),
+  contactPerson: text("contact_person"),
+  contactEmail: text("contact_email"),
+  contactPhone: text("contact_phone")
+});
+
+export const insertDistrictSchema = createInsertSchema(districts).omit({ 
+  id: true 
 });
 
 // Define export types for all schemas
@@ -166,4 +235,14 @@ export type InsertProgram = z.infer<typeof insertProgramSchema>;
 export type Program = typeof programs.$inferSelect;
 
 export type InsertActivity = z.infer<typeof insertActivitySchema>;
-export type Activity = typeof activities.$inferSelect;
+export type Activity = typeof activities.$inferSelect & {
+  metadata?: {
+    priority?: string;
+    category?: string;
+    status?: string;
+    [key: string]: any;
+  };
+};
+
+export type District = typeof districts.$inferSelect;
+export type InsertDistrict = z.infer<typeof insertDistrictSchema>;

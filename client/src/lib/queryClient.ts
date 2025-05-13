@@ -12,10 +12,15 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  const isFormData = typeof FormData !== "undefined" && data instanceof FormData;
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
-    body: data ? JSON.stringify(data) : undefined,
+    headers: !isFormData && data ? { "Content-Type": "application/json" } : {},
+    body: data
+      ? isFormData
+        ? data as FormData
+        : JSON.stringify(data)
+      : undefined,
     credentials: "include",
   });
 
@@ -46,8 +51,8 @@ export const queryClient = new QueryClient({
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
-      refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      refetchOnWindowFocus: true,
+      staleTime: 0,
       retry: false,
     },
     mutations: {

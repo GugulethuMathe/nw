@@ -31,13 +31,19 @@ const extendedStaffSchema = insertStaffSchema.extend({
   firstName: z.string().min(2, { message: "First name must be at least 2 characters" }),
   lastName: z.string().min(2, { message: "Last name must be at least 2 characters" }),
   position: z.string().min(2, { message: "Position is required" }),
+  qualifications: z.array(z.string()).optional().default([]),
+  startDate: z.string().optional(),
+  contractEndDate: z.string().optional(),
+  employmentStatus: z.string().optional(),
+  department: z.string().optional(),
+  notes: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof extendedStaffSchema>;
 
 interface StaffFormProps {
   initialData?: Staff;
-  onSuccess?: () => void;
+  onSuccess?: (staff?: Staff) => void;
   isEdit?: boolean;
   preSelectedSiteId?: number;
 }
@@ -54,37 +60,31 @@ export default function StaffForm({ initialData, onSuccess, isEdit = false, preS
   
   const form = useForm<FormValues>({
     resolver: zodResolver(extendedStaffSchema),
-    defaultValues: initialData || {
-      staffId: "",
-      firstName: "",
-      lastName: "",
-      position: "",
-      department: "",
-      email: "",
-      phone: "",
-      qualifications: "",
-      siteId: preSelectedSiteId || undefined,
-      startDate: "",
-      employmentStatus: "Permanent",
-      notes: "",
+    defaultValues: {
+      staffId: initialData?.staffId || "",
+      firstName: initialData?.firstName || "",
+      lastName: initialData?.lastName || "",
+      position: initialData?.position ?? "",
+      department: initialData?.department ?? "",
+      email: initialData?.email ?? "",
+      phone: initialData?.phone ?? "",
+      qualifications: initialData?.qualifications ?? [],
+      siteId: initialData?.siteId || preSelectedSiteId || undefined,
+      startDate: initialData?.startDate ?? "",
+      contractEndDate: initialData?.contractEndDate ?? "",
+      employmentStatus: initialData?.employmentStatus ?? "Permanent",
+      notes: initialData?.notes ?? "",
     },
   });
 
   const mutation = useMutation({
     mutationFn: async (data: FormValues) => {
-      if (isEdit && initialData) {
-        return apiRequest(`/api/staff/${initialData.id}`, {
-          method: "PATCH",
-          data,
-        });
-      } else {
-        return apiRequest("/api/staff", {
-          method: "POST",
-          data,
-        });
-      }
+      const response = await (isEdit && initialData 
+        ? apiRequest("PATCH", `/api/staff/${initialData.id}`, data)
+        : apiRequest("POST", "/api/staff", data));
+      return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: Staff) => {
       // Invalidate staff queries
       queryClient.invalidateQueries({ queryKey: ["/api/staff"] });
       
@@ -100,7 +100,7 @@ export default function StaffForm({ initialData, onSuccess, isEdit = false, preS
       });
       
       if (onSuccess) {
-        onSuccess();
+        onSuccess(data);
       }
       
       if (!isEdit) {
@@ -261,7 +261,11 @@ export default function StaffForm({ initialData, onSuccess, isEdit = false, preS
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., staff@cetcollege.edu.za" {...field} />
+                    <Input 
+                      placeholder="e.g., staff@cetcollege.edu.za" 
+                      {...field}
+                      value={field.value ?? ""} 
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -275,7 +279,11 @@ export default function StaffForm({ initialData, onSuccess, isEdit = false, preS
                 <FormItem>
                   <FormLabel>Phone</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., +27 12 345 6789" {...field} />
+                    <Input 
+                      placeholder="e.g., +27 12 345 6789" 
+                      {...field}
+                      value={field.value ?? ""} 
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -298,12 +306,34 @@ export default function StaffForm({ initialData, onSuccess, isEdit = false, preS
 
             <FormField
               control={form.control}
+              name="contractEndDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Contract End Date</FormLabel>
+                  <FormControl>
+                    <Input type="date" value={field.value || ""} onChange={field.onChange} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="qualifications"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Qualifications</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., B.Ed, NCert" {...field} />
+                    <Input 
+                      placeholder="e.g., B.Ed, NCert" 
+                      {...field}
+                      value={Array.isArray(field.value) ? field.value.join(", ") : field.value ?? ""}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        field.onChange(value ? value.split(",").map(item => item.trim()) : []);
+                      }}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

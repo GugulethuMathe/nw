@@ -29,7 +29,7 @@ import {
 // Extend the schema for additional validation
 const extendedProgramSchema = insertProgramSchema.extend({
   name: z.string().min(3, { message: "Program name must be at least 3 characters" }),
-  description: z.string().min(10, { message: "Description must be at least 10 characters" }),
+  description: z.string().min(10, { message: "Description must be at least 10 characters" }).optional(),
 });
 
 type FormValues = z.infer<typeof extendedProgramSchema>;
@@ -53,44 +53,43 @@ export default function ProgramForm({ initialData, onSuccess, isEdit = false, pr
   
   const form = useForm<FormValues>({
     resolver: zodResolver(extendedProgramSchema),
-    defaultValues: initialData || {
+    defaultValues: initialData ? {
+      programId: initialData.programId,
+      name: initialData.name,
+      category: initialData.category,
+      description: initialData.description || undefined,
+      enrollmentCount: initialData.enrollmentCount || undefined,
+      startDate: initialData.startDate || undefined,
+      endDate: initialData.endDate || undefined,
+      status: initialData.status,
+      notes: initialData.notes || undefined,
+      siteId: initialData.siteId || undefined,
+    } : {
       programId: "",
       name: "",
-      description: "",
-      type: "Accredited",
-      level: "",
-      duration: "",
-      startDate: "",
-      endDate: "",
-      siteId: preSelectedSiteId || undefined,
-      coordinator: "",
-      capacity: 0,
-      currentEnrollment: 0,
-      accreditationDetails: "",
+      category: "Basic Education",
+      description: undefined,
+      enrollmentCount: undefined,
+      startDate: undefined,
+      endDate: undefined,
       status: "Active",
-      notes: "",
+      notes: undefined,
+      siteId: preSelectedSiteId || undefined,
     },
   });
 
   const mutation = useMutation({
     mutationFn: async (data: FormValues) => {
-      if (isEdit && initialData) {
-        return apiRequest(`/api/programs/${initialData.id}`, {
-          method: "PATCH",
-          data,
-        });
-      } else {
-        return apiRequest("/api/programs", {
-          method: "POST",
-          data,
-        });
-      }
+      const response = await apiRequest(
+        isEdit && initialData ? 'PATCH' : 'POST',
+        isEdit && initialData ? `/api/programs/${initialData.id}` : '/api/programs',
+        data
+      );
+      return response.json();
     },
     onSuccess: () => {
-      // Invalidate programs queries
       queryClient.invalidateQueries({ queryKey: ["/api/programs"] });
       
-      // If a site is selected, also invalidate that site's programs list
       const siteId = form.getValues("siteId");
       if (siteId) {
         queryClient.invalidateQueries({ queryKey: [`/api/sites/${siteId}/programs`] });
@@ -158,56 +157,28 @@ export default function ProgramForm({ initialData, onSuccess, isEdit = false, pr
 
             <FormField
               control={form.control}
-              name="type"
+              name="category"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Program Type</FormLabel>
+                  <FormLabel>Category</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select program type" />
+                        <SelectValue placeholder="Select category" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="Accredited">Accredited</SelectItem>
-                      <SelectItem value="NonAccredited">Non-Accredited</SelectItem>
-                      <SelectItem value="ShortCourse">Short Course</SelectItem>
-                      <SelectItem value="Workshop">Workshop</SelectItem>
+                      <SelectItem value="Basic Education">Basic Education</SelectItem>
+                      <SelectItem value="Vocational">Vocational</SelectItem>
+                      <SelectItem value="Technical">Technical</SelectItem>
+                      <SelectItem value="Professional">Professional</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
                 </FormItem>
               )}
             />
-
-            <FormField
-              control={form.control}
-              name="level"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Level</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., Beginner, Intermediate, Advanced" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="duration"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Duration</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., 6 months, 1 year" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
+            
             <FormField
               control={form.control}
               name="status"
@@ -222,9 +193,8 @@ export default function ProgramForm({ initialData, onSuccess, isEdit = false, pr
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="Active">Active</SelectItem>
+                      <SelectItem value="Inactive">Inactive</SelectItem>
                       <SelectItem value="Planned">Planned</SelectItem>
-                      <SelectItem value="Completed">Completed</SelectItem>
-                      <SelectItem value="Suspended">Suspended</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -268,12 +238,18 @@ export default function ProgramForm({ initialData, onSuccess, isEdit = false, pr
 
             <FormField
               control={form.control}
-              name="coordinator"
+              name="enrollmentCount"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Coordinator</FormLabel>
+                  <FormLabel>Current Enrollment</FormLabel>
                   <FormControl>
-                    <Input placeholder="Name of program coordinator" {...field} />
+                    <Input 
+                      type="number" 
+                      placeholder="0" 
+                      {...field}
+                      value={field.value ?? ''}
+                      onChange={e => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -287,7 +263,7 @@ export default function ProgramForm({ initialData, onSuccess, isEdit = false, pr
                 <FormItem>
                   <FormLabel>Start Date</FormLabel>
                   <FormControl>
-                    <Input type="date" {...field} />
+                    <Input type="date" {...field} value={field.value ?? ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -301,52 +277,12 @@ export default function ProgramForm({ initialData, onSuccess, isEdit = false, pr
                 <FormItem>
                   <FormLabel>End Date</FormLabel>
                   <FormControl>
-                    <Input type="date" {...field} />
+                    <Input type="date" {...field} value={field.value ?? ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-
-            <div className="grid grid-cols-2 gap-2">
-              <FormField
-                control={form.control}
-                name="capacity"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Capacity</FormLabel>
-                    <FormControl>
-                      <Input 
-                        type="number" 
-                        placeholder="0" 
-                        {...field}
-                        onChange={e => field.onChange(parseInt(e.target.value) || 0)}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="currentEnrollment"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Current Enrollment</FormLabel>
-                    <FormControl>
-                      <Input 
-                        type="number" 
-                        placeholder="0" 
-                        {...field}
-                        onChange={e => field.onChange(parseInt(e.target.value) || 0)}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
           </div>
         </div>
 
@@ -362,25 +298,8 @@ export default function ProgramForm({ initialData, onSuccess, isEdit = false, pr
                   <Textarea 
                     placeholder="Detailed description of the program"
                     className="resize-none min-h-[100px]"
-                    {...field} 
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="accreditationDetails"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Accreditation Details</FormLabel>
-                <FormControl>
-                  <Textarea 
-                    placeholder="Details about accreditation"
-                    className="resize-none"
-                    {...field} 
+                    {...field}
+                    value={field.value ?? ''} 
                   />
                 </FormControl>
                 <FormMessage />
@@ -398,7 +317,8 @@ export default function ProgramForm({ initialData, onSuccess, isEdit = false, pr
                   <Textarea 
                     placeholder="Any additional information about the program"
                     className="resize-none"
-                    {...field} 
+                    {...field}
+                    value={field.value ?? ''} 
                   />
                 </FormControl>
                 <FormMessage />
